@@ -18,6 +18,8 @@ export interface EmployeeRow {
   employeeId: string | null;
   fullName: string;
   nickName: string | null;
+  dob: string | null;
+  phone: string | null;
   role: string | null;
   branchCode: string | null;
   branchName: string | null;
@@ -126,6 +128,8 @@ export async function listEmployees(filters: ListFilters = {}): Promise<Employee
       employeeId: emp?.employee_id ?? null,
       fullName: titleCaseName(u.user_profile?.full_name) || u.email,
       nickName: u.user_profile?.nick_name ? titleCaseName(u.user_profile.nick_name) : null,
+      dob: u.user_profile?.dob ? u.user_profile.dob.toISOString().slice(0, 10) : null,
+      phone: u.user_profile?.phone ?? null,
       role: emp?.position ?? null,
       branchCode: emp?.branch?.branch_code ?? null,
       branchName: emp?.branch?.branch_name ?? null,

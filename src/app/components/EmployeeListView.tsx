@@ -17,6 +17,8 @@ import {
   UserPlus,
   CircleAlert,
 } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { deleteEmployee } from "@/app/dashboard-employee-management/actions";
 
 const ROLE_OPTIONS = ["FT CEO", "FT HOD", "FT EXEC", "BM", "FT COACH", "PT COACH", "INTERN"] as const;
@@ -46,6 +48,8 @@ export interface EmployeeRow {
   employeeId: string | null;
   fullName: string;
   nickName: string | null;
+  dob: string | null;
+  phone: string | null;
   role: string | null;
   branchCode: string | null;
   branchName: string | null;
@@ -74,6 +78,26 @@ function formatDate(iso: string | null): string {
 function statusLabel(s: string | null): string {
   if (!s) return "—";
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function calculateAge(dob: string | null): string {
+  if (!dob) return "—";
+  const birth = new Date(dob);
+  if (Number.isNaN(birth.getTime())) return "—";
+  const now = new Date();
+  let age = now.getFullYear() - birth.getFullYear();
+  const m = now.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
+  return age >= 0 ? String(age) : "—";
+}
+
+// Branch label for export — "HQ — Optimisation" for HQ folks (so the
+// department isn't lost), branch name otherwise.
+function branchLabel(e: EmployeeRow): string {
+  if (e.branchCode === "HQ") {
+    return e.departmentName ? `HQ — ${e.departmentName}` : "HQ";
+  }
+  return e.branchName ?? e.departmentName ?? "—";
 }
 
 export default function EmployeeListView({
@@ -167,6 +191,134 @@ export default function EmployeeListView({
     setPage(1);
   };
 
+  // Export the currently-filtered employee list as a clean, minimalist PDF.
+  // Header bar matches the manpower report (logo + title + period); the table
+  // itself is borderless with thin row dividers — fewer ink, easier to scan.
+  async function generatePDF() {
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+
+    let logoImg: string | null = null;
+    try {
+      const resp = await fetch("/ebright-logo.png");
+      if (resp.ok) {
+        const blob = await resp.blob();
+        logoImg = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsDataURL(blob);
+        });
+      }
+    } catch { /* no logo available */ }
+
+    // Header bar
+    doc.setFillColor(30, 41, 59); // slate-800
+    doc.rect(0, 0, pageW, 28, "F");
+
+    let headerX = 14;
+    if (logoImg) {
+      doc.addImage(logoImg, "PNG", 14, 3, 55, 22);
+      headerX = 74;
+    }
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text("EMPLOYEE LIST", headerX, 14);
+
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    const filterLabels: string[] = [`${filtered.length} ${filtered.length === 1 ? "employee" : "employees"}`];
+    if (orgUnit.startsWith("branch:")) {
+      const code = orgUnit.slice("branch:".length);
+      const b = branches.find((x) => x.code === code);
+      filterLabels.push(`Branch: ${b?.name ?? code}`);
+    } else if (orgUnit.startsWith("dept:")) {
+      const code = orgUnit.slice("dept:".length);
+      const d = departments.find((x) => x.code === code);
+      filterLabels.push(`Dept: ${d?.name ?? code}`);
+    }
+    if (role) filterLabels.push(`Role: ${role}`);
+    if (status) filterLabels.push(`Status: ${statusLabel(status)}`);
+    if (search) filterLabels.push(`Search: "${search}"`);
+    doc.text(filterLabels.join("  |  "), headerX, 21);
+
+    doc.setFontSize(8);
+    doc.text(`Generated: ${new Date().toLocaleDateString("en-MY")}`, pageW - 14, 21, { align: "right" });
+
+    const startY = 38;
+
+    const head = [["Emp ID", "Name", "Age", "Position", "Branch / Dept", "Email", "Phone"]];
+    const body: string[][] = filtered.map((e) => [
+      e.employeeId ?? "—",
+      e.nickName ? `${e.fullName}\n${e.nickName}` : e.fullName,
+      calculateAge(e.dob),
+      e.role ?? "—",
+      branchLabel(e),
+      e.email,
+      e.phone ?? "—",
+    ]);
+
+    if (body.length === 0) {
+      body.push(["—", "No employees match the current filters.", "", "", "", "", ""]);
+    }
+
+    autoTable(doc, {
+      startY,
+      head,
+      body,
+      theme: "plain",
+      styles: {
+        fontSize: 8,
+        cellPadding: { top: 3, right: 3, bottom: 3, left: 3 },
+        textColor: [51, 65, 85], // slate-700
+        lineColor: [226, 232, 240], // slate-200
+        lineWidth: 0,
+        valign: "middle",
+      },
+      headStyles: {
+        fillColor: [248, 250, 252], // slate-50
+        textColor: [71, 85, 105], // slate-600
+        fontStyle: "bold",
+        fontSize: 8,
+        // Force uppercase header look via cellPadding spacing (autotable doesn't
+        // text-transform); titles are already uppercase in `head`.
+        cellPadding: { top: 4, right: 3, bottom: 4, left: 3 },
+        lineWidth: { bottom: 0.4 },
+        lineColor: [203, 213, 225], // slate-300
+      },
+      bodyStyles: {
+        lineWidth: { bottom: 0.1 },
+        lineColor: [241, 245, 249], // slate-100 — barely-there row divider
+      },
+      columnStyles: {
+        0: { cellWidth: 24, fontStyle: "bold", textColor: [30, 41, 59] }, // Emp ID
+        1: { cellWidth: 50 }, // Name
+        2: { cellWidth: 14, halign: "center" }, // Age
+        3: { cellWidth: 28 }, // Position
+        4: { cellWidth: 44 }, // Branch / Dept
+        5: { cellWidth: 56 }, // Email
+        6: { cellWidth: "auto" }, // Phone
+      },
+      margin: { left: 14, right: 14 },
+    });
+
+    // Footer
+    const totalPages = doc.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(7);
+      doc.setTextColor(150);
+      doc.text("Ebright HRMS — Confidential", 14, pageH - 6);
+      doc.text(`Page ${i} of ${totalPages}`, pageW - 14, pageH - 6, { align: "right" });
+    }
+
+    const pdfBlob = doc.output("blob");
+    const url = URL.createObjectURL(pdfBlob);
+    window.open(url, "_blank");
+  }
+
   return (
     <div className="min-h-full bg-slate-50">
       <div className="max-w-7xl mx-auto px-6 pt-4 pb-10">
@@ -197,6 +349,7 @@ export default function EmployeeListView({
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={generatePDF}
               className="inline-flex items-center gap-2 h-10 px-4 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               <Download className="w-4 h-4" aria-hidden="true" />

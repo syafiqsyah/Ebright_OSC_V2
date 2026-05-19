@@ -21,12 +21,6 @@ const LATE_HOUR_MYT = 9;        // strictly after 09:00 MYT counts as late
 const EARLY_OUT_HOUR_MYT = 18;  // strictly before 18:00 MYT counts as early
 const SCANNER_ONLINE_WINDOW_MIN = 10; // any log in last N minutes ⇒ online
 
-// CEO is company-wide leadership — if their employment row has no branch, treat
-// HQ as their home so they don't show as "visiting another branch" everywhere.
-const CEO_ROLE_ID = 2;
-const CEO_HOME_BRANCH_CODE = "HQ";
-const CEO_HOME_BRANCH_NAME = "HQ";
-
 interface PageProps {
   searchParams: Promise<{ branch?: string; date?: string }>;
 }
@@ -123,35 +117,35 @@ export default async function AttendanceSummaryPage({ searchParams }: PageProps)
     : null;
   const isAllBranches = selectedBranch === null;
 
-  // Active employees in scope.
-  // Scope: role_id 2 (CEO) or 4 (employee) — both clock attendance.
-  // Plus at least one employment row with a non-null employee_id (and matching
-  // the selected branch when one is chosen).
+  // Active employees in scope: role_id = 4 (staff) only, with at least one
+  // employment row that has a non-null employee_id (and matches the selected
+  // branch when one is chosen).
   const employees = await prisma.users.findMany({
     where: {
       status: "active",
       deleted_at: null,
-      role_id: { in: [2, 4] },
+      role_id: 4,
       employment: selectedBranch
         ? {
             some: {
+              status: "active",
               branch_id: selectedBranch.branch_id,
               employee_id: { not: null },
             },
           }
-        : { some: { employee_id: { not: null } } },
+        : { some: { status: "active", employee_id: { not: null } } },
     },
     select: {
       user_id: true,
-      role_id: true,
       user_profile: { select: { full_name: true } },
       employment: {
         where: selectedBranch
           ? {
+              status: "active",
               branch_id: selectedBranch.branch_id,
               employee_id: { not: null },
             }
-          : { employee_id: { not: null } },
+          : { status: "active", employee_id: { not: null } },
         take: 1,
         orderBy: { employment_id: "desc" },
         select: {
@@ -278,10 +272,13 @@ export default async function AttendanceSummaryPage({ searchParams }: PageProps)
 
   const visitors = visitorIds.length
     ? await prisma.users.findMany({
-        where: { user_id: { in: visitorIds } },
+        where: {
+          user_id: { in: visitorIds },
+          status: "active",
+          role_id: 4,
+        },
         select: {
           user_id: true,
-          role_id: true,
           user_profile: { select: { full_name: true } },
           employment: {
             take: 1,
@@ -297,8 +294,12 @@ export default async function AttendanceSummaryPage({ searchParams }: PageProps)
       })
     : [];
 
-  // Build rows: expected first, then visitors
+  // Build rows: expected first, then visitors.
+  // Trust the attendance row directly — if the table has check_in/check_out
+  // for the day, show them. The scans count is still surfaced separately so
+  // log/attendance drift is visible in the UI.
   const expectedRows: AttendanceRow[] = employees.map((e) => {
+    const scansForToday = logCountMap.get(e.user_id) ?? 0;
     const att = attMap.get(e.user_id);
     const checkIn = att?.check_in ?? null;
     const checkOut = att?.check_out ?? null;
@@ -315,9 +316,7 @@ export default async function AttendanceSummaryPage({ searchParams }: PageProps)
       : null;
 
     const employment = e.employment[0];
-    const homeBranchCode =
-      employment?.branch?.branch_code ??
-      (e.role_id === CEO_ROLE_ID ? CEO_HOME_BRANCH_CODE : null);
+    const homeBranchCode = employment?.branch?.branch_code ?? null;
 
     return {
       user_id: e.user_id,
@@ -329,7 +328,7 @@ export default async function AttendanceSummaryPage({ searchParams }: PageProps)
       check_out: checkOut?.toISOString() ?? null,
       in_status: inStatus,
       out_status: outStatus,
-      scans: logCountMap.get(e.user_id) ?? 0,
+      scans: scansForToday,
       home_branch_code: homeBranchCode,
       visiting_from: null,
     };
@@ -349,12 +348,8 @@ export default async function AttendanceSummaryPage({ searchParams }: PageProps)
       : null;
 
     const employment = v.employment[0];
-    const isCeo = v.role_id === CEO_ROLE_ID;
-    const homeBranchCode =
-      employment?.branch?.branch_code ?? (isCeo ? CEO_HOME_BRANCH_CODE : null);
-    const homeBranchName =
-      employment?.branch?.branch_name ??
-      (isCeo ? CEO_HOME_BRANCH_NAME : "another branch");
+    const homeBranchCode = employment?.branch?.branch_code ?? null;
+    const homeBranchName = employment?.branch?.branch_name ?? "another branch";
 
     return {
       user_id: v.user_id,

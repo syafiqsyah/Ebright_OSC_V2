@@ -14,9 +14,7 @@ import AttendanceReportView, {
 
 export const dynamic = "force-dynamic";
 
-// Roles that appear on the attendance report (raw role_id values from `role` table).
-const REPORT_ROLE_IDS = [2, 4];
-// Staff (role_id = 4) can open the page but only ever see their own attendance.
+// Only role_id 4 (staff) appears on the attendance report.
 const STAFF_ROLE_ID = 4;
 
 // Company convention: Sunday and Monday are off days
@@ -67,13 +65,15 @@ export default async function AttendanceReportPage({ searchParams }: PageProps) 
       where: {
         status: "active",
         deleted_at: null,
-        role_id: { in: REPORT_ROLE_IDS },
+        role_id: STAFF_ROLE_ID,
+        employment: { some: { status: "active" } },
       },
       select: {
         user_id: true,
         user_profile: { select: { full_name: true } },
         role: { select: { role_type: true } },
         employment: {
+          where: { status: "active" },
           take: 1,
           orderBy: { employment_id: "desc" },
           select: {

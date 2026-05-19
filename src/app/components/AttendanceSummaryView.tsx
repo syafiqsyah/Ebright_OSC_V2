@@ -306,7 +306,7 @@ export default function AttendanceSummaryView({ data }: { data: SummaryData }) {
           <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-5 border-b border-slate-200">
             <div>
               <h2 className="text-base font-semibold text-slate-800">
-                Today&rsquo;s Attendance
+                {isToday ? "Today’s Attendance" : `${selectedDateLabel} Attendance`}
               </h2>
               <p className="text-xs font-medium text-slate-500 mt-0.5">
                 {filteredRows.length} of {data.rows.length} employees shown

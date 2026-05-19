@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import DashboardHome from "@/app/components/DashboardHome";
 import EmployeeSelfServiceDashboard from "@/app/components/EmployeeSelfServiceDashboard";
+import HrPersonalizedDashboard from "@/app/components/HrPersonalizedDashboard";
 import AppShell from "@/app/components/AppShell";
 
 export default function HomePage() {
@@ -28,10 +29,13 @@ export default function HomePage() {
 
   // role_type "staff" corresponds to role_id = 4 in the DB.
   const isStaff = userRole.toLowerCase() === "staff";
+  const isHr = userEmail.toLowerCase() === "hr@ebright.my";
 
   return (
     <AppShell email={userEmail} role={userRole} name={userName}>
-      {isStaff ? (
+      {isHr ? (
+        <HrPersonalizedDashboard userName={userName} userEmail={userEmail} />
+      ) : isStaff ? (
         <EmployeeSelfServiceDashboard userName={userName} userEmail={userEmail} />
       ) : (
         <DashboardHome userRole={userRole} userEmail={userEmail} />

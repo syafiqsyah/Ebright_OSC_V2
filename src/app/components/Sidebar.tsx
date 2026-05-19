@@ -22,16 +22,32 @@ interface NavItem {
   name: string;
   href: string;
   Icon: IconComponent;
+  external?: boolean;
 }
 
 const primaryNav: NavItem[] = [
   { name: "Home", href: "/home", Icon: Home },
-  { name: "Library", href: "/dashboards/library", Icon: Library },
-  { name: "Internal Dashboard", href: "/dashboards/internal-dashboard", Icon: LayoutDashboard },
+  {
+    name: "Library",
+    href: "https://library.ebright.my/",
+    Icon: Library,
+    external: true,
+  },
+  {
+    name: "Internal Dashboard",
+    href: "https://dashboard.ebright.my",
+    Icon: LayoutDashboard,
+    external: true,
+  },
   { name: "HRMS", href: "/dashboards/hrms", Icon: Users },
   { name: "CRM", href: "/dashboards/crm", Icon: Newspaper },
   { name: "SMS", href: "/dashboards/sms", Icon: MessageSquare },
-  { name: "Inventory", href: "/dashboards/inventory", Icon: Package },
+  {
+    name: "Inventory",
+    href: "https://inventory.ebright.my/",
+    Icon: Package,
+    external: true,
+  },
   { name: "Academy", href: "/academy", Icon: GraduationCap },
 ];
 
@@ -101,31 +117,54 @@ function NavSection({
         </p>
       )}
       <ul className="space-y-1">
-        {items.map(({ name, href, Icon }) => {
-          const isActive = pathname === href || pathname?.startsWith(href + "/");
-          return (
-            <li key={name}>
-              <Link
-                href={href}
-                title={collapsed ? name : undefined}
-                aria-current={isActive ? "page" : undefined}
-                className={`relative flex items-center gap-3 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-                  collapsed ? "justify-center h-10 w-10 mx-auto" : "px-3 py-2.5"
-                } ${
-                  isActive
-                    ? "bg-blue-50 text-blue-700"
-                    : "text-slate-700 hover:bg-slate-100"
-                }`}
-              >
-                {isActive && !collapsed && (
-                  <span className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-blue-600 rounded-r" aria-hidden="true" />
-                )}
-                <Icon
-                  className={`w-5 h-5 shrink-0 ${isActive ? "text-blue-600" : "text-slate-500"}`}
+        {items.map(({ name, href, Icon, external }) => {
+          const isActive =
+            !external &&
+            (pathname === href || pathname?.startsWith(href + "/"));
+          const className = `relative flex items-center gap-3 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+            collapsed ? "justify-center h-10 w-10 mx-auto" : "px-3 py-2.5"
+          } ${
+            isActive
+              ? "bg-blue-50 text-blue-700"
+              : "text-slate-700 hover:bg-slate-100"
+          }`;
+          const inner = (
+            <>
+              {isActive && !collapsed && (
+                <span
+                  className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-blue-600 rounded-r"
                   aria-hidden="true"
                 />
-                {!collapsed && <span className="whitespace-nowrap">{name}</span>}
-              </Link>
+              )}
+              <Icon
+                className={`w-5 h-5 shrink-0 ${isActive ? "text-blue-600" : "text-slate-500"}`}
+                aria-hidden="true"
+              />
+              {!collapsed && <span className="whitespace-nowrap">{name}</span>}
+            </>
+          );
+          return (
+            <li key={name}>
+              {external ? (
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={collapsed ? name : undefined}
+                  className={className}
+                >
+                  {inner}
+                </a>
+              ) : (
+                <Link
+                  href={href}
+                  title={collapsed ? name : undefined}
+                  aria-current={isActive ? "page" : undefined}
+                  className={className}
+                >
+                  {inner}
+                </Link>
+              )}
             </li>
           );
         })}

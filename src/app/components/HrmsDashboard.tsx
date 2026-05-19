@@ -10,6 +10,7 @@ import {
   UserPlus,
   UserMinus,
   PiggyBank,
+  Users,
   Home,
   ChevronRight,
 } from "lucide-react";
@@ -114,6 +115,15 @@ const modules: HrmsModule[] = [
     Icon: PiggyBank,
     accent: "bg-teal-600",
     accentHover: "group-hover:bg-teal-700",
+  },
+  {
+    id: "staff-directory",
+    title: "Staff Directory",
+    description: "Browse staff contacts and details",
+    href: "/staff-directory",
+    Icon: Users,
+    accent: "bg-indigo-600",
+    accentHover: "group-hover:bg-indigo-700",
   },
 ];
 

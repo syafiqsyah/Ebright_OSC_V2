@@ -166,11 +166,18 @@ export async function GET(req: Request) {
         employment: {
           orderBy: { employment_id: "desc" },
           take: 1,
-          select: { position: true },
+          select: {
+            employee_id: true,
+            position: true,
+            employment_type: true,
+            rate: true,
+            branch: { select: { branch_name: true } },
+          },
         },
       },
     });
-    const myPosition = me?.employment[0]?.position ?? null;
+    const myEmployment = me?.employment[0] ?? null;
+    const myPosition = myEmployment?.position ?? null;
     const isEmployeeView =
       me?.role_id === STAFF_ROLE_ID && isCoachPosition(myPosition);
     const myFullNameLc = me?.user_profile?.full_name?.toLowerCase().trim() ?? "";
@@ -401,10 +408,23 @@ export async function GET(req: Request) {
       availableWeeks,
       isEmployeeView,
       viewer: isEmployeeView
-        ? {
-            name: me?.user_profile?.full_name ?? me?.user_profile?.nick_name ?? "",
-            position: myPosition,
-          }
+        ? (() => {
+            const posUpper = (myPosition ?? "").toUpperCase();
+            const isPT =
+              posUpper.startsWith("PT") ||
+              posUpper.includes("PT -") ||
+              posUpper.includes("PART-TIME") ||
+              posUpper.includes("PART TIME");
+            const rateNum = myEmployment?.rate ? Number(myEmployment.rate) : null;
+            return {
+              name: me?.user_profile?.full_name ?? me?.user_profile?.nick_name ?? "",
+              position: myPosition,
+              employeeId: myEmployment?.employee_id ?? null,
+              branch: myEmployment?.branch?.branch_name ?? "",
+              isPT,
+              rate: rateNum && !Number.isNaN(rateNum) ? rateNum : null,
+            };
+          })()
         : null,
     });
   } catch (err) {
