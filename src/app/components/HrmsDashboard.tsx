@@ -13,6 +13,7 @@ import {
   Users,
   Home,
   ChevronRight,
+  Sparkles,
 } from "lucide-react";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
@@ -75,6 +76,16 @@ const modules: HrmsModule[] = [
     Icon: UserPlus,
     accent: "bg-emerald-600",
     accentHover: "group-hover:bg-emerald-700",
+    requiredRoles: MANAGE_INDUCTION_ROLE_TYPES,
+  },
+  {
+    id: "induction-training",
+    title: "Induction Training",
+    description: "Open the interactive 3-day training experience",
+    href: "/onboarding-preview/index.html",
+    Icon: Sparkles,
+    accent: "bg-pink-600",
+    accentHover: "group-hover:bg-pink-700",
     requiredRoles: MANAGE_INDUCTION_ROLE_TYPES,
   },
   {
