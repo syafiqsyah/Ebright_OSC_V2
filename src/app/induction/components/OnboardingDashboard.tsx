@@ -13,8 +13,10 @@ import {
   UserPlus,
 } from "lucide-react";
 import {
+  acceptInductionRequest,
   createInductionRequest,
   createInductionRequestForEbrightCandidate,
+  declineInductionRequest,
 } from "@/app/induction/actions";
 import type {
   CombinedExitRow,
@@ -22,6 +24,8 @@ import type {
   DepartmentOption,
   InductionStepView,
   InductionView,
+  PendingInductionRequestRow,
+  PendingInductionRow,
   SubstepTemplateView,
 } from "@/app/induction/queries";
 
@@ -92,6 +96,102 @@ interface OnboardingDashboardProps {
   isManager: boolean;
   substepTemplates: SubstepTemplateView[];
   departments: DepartmentOption[];
+  /** Phase 2B: full onboarding profiles for stats + categories + table.
+   *  Only populated when view === "onboarding". */
+  onboardingProfiles?: PendingInductionRow[];
+  /** Phase 2B: pending induction requests for the Pending Requests card. */
+  pendingRequests?: PendingInductionRequestRow[];
+}
+
+// Phase 2B: 5 employee-type categories per spec v2. Keys map to
+// `induction_profile.workflow_template` values; "CoachFullTimer" doesn't
+// have a template seeded yet so its category will show 0/0 until one is
+// added — that's expected.
+const CATEGORIES: ReadonlyArray<{
+  key: string;
+  label: string;
+  icon: string;
+  bgClass: string;
+  borderClass: string;
+  textClass: string;
+  barClass: string;
+}> = [
+  { key: "Standard",            label: "Regular Intern",    icon: "👤", bgClass: "bg-blue-50",    borderClass: "border-blue-200",    textClass: "text-blue-700",    barClass: "bg-blue-500" },
+  { key: "ProtegeInternBranch", label: "Protege Intern",    icon: "🌱", bgClass: "bg-violet-50",  borderClass: "border-violet-200",  textClass: "text-violet-700",  barClass: "bg-violet-500" },
+  { key: "CoachPartTimer",      label: "Coach (Part-timer)", icon: "🎯", bgClass: "bg-amber-50",   borderClass: "border-amber-200",   textClass: "text-amber-700",   barClass: "bg-amber-500" },
+  { key: "CoachFullTimer",      label: "Coach (Full-timer)", icon: "⭐", bgClass: "bg-emerald-50", borderClass: "border-emerald-200", textClass: "text-emerald-700", barClass: "bg-emerald-500" },
+  { key: "FullTimer",           label: "Full-timer (HQ)",   icon: "🏢", bgClass: "bg-rose-50",    borderClass: "border-rose-200",    textClass: "text-rose-700",    barClass: "bg-rose-500" },
+];
+
+interface OnboardingStats {
+  total: number;
+  completed: number;
+  inProgress: number;
+  notStarted: number;
+}
+
+function computeOnboardingStats(profiles: PendingInductionRow[]): OnboardingStats {
+  let total = 0, completed = 0, inProgress = 0, notStarted = 0;
+  for (const p of profiles) {
+    total += 1;
+    if (p.status === "Completed") completed += 1;
+    else if (p.status === "In Progress") inProgress += 1;
+    else if (p.status === "Sent" || p.status === "Created") notStarted += 1;
+  }
+  return { total, completed, inProgress, notStarted };
+}
+
+function countProfilesByTemplate(
+  profiles: PendingInductionRow[],
+  templateKey: string,
+): { total: number; completed: number } {
+  let total = 0, completed = 0;
+  for (const p of profiles) {
+    if (p.workflowTemplate !== templateKey) continue;
+    total += 1;
+    if (p.status === "Completed") completed += 1;
+  }
+  return { total, completed };
+}
+
+function initialsFromName(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function formatDateShort(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+function formatRelativeTime(iso: string): string {
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  const diffMs = now - then;
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 30) return `${diffDay}d ago`;
+  const diffMo = Math.floor(diffDay / 30);
+  return `${diffMo}mo ago`;
+}
+
+function statusBadgeClasses(status: string): string {
+  if (status === "Completed") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  if (status === "In Progress") return "bg-blue-50 text-blue-700 border-blue-200";
+  if (status === "Sent") return "bg-amber-50 text-amber-700 border-amber-200";
+  return "bg-slate-50 text-slate-600 border-slate-200";
+}
+
+function categoryLabelForTemplate(templateKey: string): string {
+  const cat = CATEGORIES.find((c) => c.key === templateKey);
+  return cat?.label ?? templateKey;
 }
 
 function templateToPreviewSteps(
@@ -128,6 +228,8 @@ export default function OnboardingDashboard({
   isManager,
   substepTemplates,
   departments,
+  onboardingProfiles,
+  pendingRequests,
 }: OnboardingDashboardProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -135,8 +237,82 @@ export default function OnboardingDashboard({
   const [errors, setErrors] = useState<Map<string, string>>(new Map());
   const [refreshing, setRefreshing] = useState(false);
 
+  // Phase 2B state — category filter + search for the candidates table.
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [requestActionPending, setRequestActionPending] = useState<Set<number>>(new Set());
+  const [requestActionErrors, setRequestActionErrors] = useState<Map<number, string>>(new Map());
+
   const showOnboarding = view !== "offboarding";
   const showOffboarding = view !== "onboarding";
+
+  // Phase 2B: only render the new HR layout when view is exactly "onboarding"
+  // AND the page passed profiles + requests. Other views (offboarding, both)
+  // keep the original layout untouched.
+  const showHRLayout = view === "onboarding" && onboardingProfiles !== undefined;
+
+  const profilesForStats = onboardingProfiles ?? [];
+  const requestsForCard = pendingRequests ?? [];
+
+  const stats = computeOnboardingStats(profilesForStats);
+
+  const filteredProfiles = profilesForStats.filter((p) => {
+    if (categoryFilter && p.workflowTemplate !== categoryFilter) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      const hay = `${p.employeeName} ${p.employeeEmail}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  const handleAcceptRequest = (requestId: number) => {
+    setRequestActionPending((p) => new Set(p).add(requestId));
+    setRequestActionErrors((e) => {
+      const next = new Map(e);
+      next.delete(requestId);
+      return next;
+    });
+    startTransition(async () => {
+      const result = await acceptInductionRequest(requestId);
+      setRequestActionPending((p) => {
+        const next = new Set(p);
+        next.delete(requestId);
+        return next;
+      });
+      if (!result.ok) {
+        setRequestActionErrors((e) =>
+          new Map(e).set(requestId, result.error ?? "Failed to accept"),
+        );
+      } else {
+        router.refresh();
+      }
+    });
+  };
+
+  const handleDeclineRequest = (requestId: number) => {
+    setRequestActionPending((p) => new Set(p).add(requestId));
+    setRequestActionErrors((e) => {
+      const next = new Map(e);
+      next.delete(requestId);
+      return next;
+    });
+    startTransition(async () => {
+      const result = await declineInductionRequest(requestId);
+      setRequestActionPending((p) => {
+        const next = new Set(p);
+        next.delete(requestId);
+        return next;
+      });
+      if (!result.ok) {
+        setRequestActionErrors((e) =>
+          new Map(e).set(requestId, result.error ?? "Failed to decline"),
+        );
+      } else {
+        router.refresh();
+      }
+    });
+  };
 
   const hiresUrgent = hires.filter((h) => h.isWithin7Days).length;
   const exitsUrgent = exits.filter((e) => e.isWithin7Days).length;
@@ -150,7 +326,7 @@ export default function OnboardingDashboard({
 
   const subheading =
     view === "onboarding"
-      ? "Employees within ±1 week of their start date. Add them to the induction queue."
+      ? "Manage and track new hire induction progress — eBright"
       : view === "offboarding"
         ? "Employees leaving within the next 2 weeks. Add them to the offboarding queue."
         : "Employees within ±1 week of joining, or leaving in the next 2 weeks.";
@@ -223,14 +399,239 @@ export default function OnboardingDashboard({
               <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} aria-hidden="true" />
               Refresh
             </button>
+            {showHRLayout && (
+              <Link
+                href="/induction/control-centre"
+                className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+              >
+                ＋ New Candidate
+              </Link>
+            )}
             <Link
               href="/induction/control-centre"
-              className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
             >
               Control Centre →
             </Link>
           </div>
         </header>
+
+        {showHRLayout && (
+          <>
+            {/* ── 4 Stat Cards ── */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+              <StatCard label="Total Onboarding" value={stats.total} subtitle="Active pipeline." accentClass="bg-blue-500" />
+              <StatCard label="Completed" value={stats.completed} subtitle="All days done." accentClass="bg-emerald-500" />
+              <StatCard label="In Progress" value={stats.inProgress} subtitle="Actively training." accentClass="bg-amber-500" />
+              <StatCard label="Not Started" value={stats.notStarted} subtitle="Link sent, awaiting." accentClass="bg-rose-500" />
+            </div>
+
+            {/* ── Employee Categories Filter ── */}
+            <section aria-labelledby="cat-heading" className="bg-white border border-slate-200 rounded-2xl mb-6">
+              <header className="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-200">
+                <div>
+                  <h2 id="cat-heading" className="text-sm font-semibold text-slate-900">⊞ Employee Categories</h2>
+                  <p className="mt-0.5 text-xs text-slate-500">Click a category to filter the candidate list below.</p>
+                </div>
+                {categoryFilter && (
+                  <button
+                    type="button"
+                    onClick={() => setCategoryFilter(null)}
+                    className="text-xs font-semibold text-slate-600 hover:text-slate-900 underline underline-offset-2"
+                  >
+                    ✕ Clear filter
+                  </button>
+                )}
+              </header>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 p-4">
+                {CATEGORIES.map((cat) => {
+                  const counts = countProfilesByTemplate(profilesForStats, cat.key);
+                  const active = categoryFilter === cat.key;
+                  const pct = counts.total > 0 ? Math.round((counts.completed / counts.total) * 100) : 0;
+                  return (
+                    <button
+                      key={cat.key}
+                      type="button"
+                      onClick={() => setCategoryFilter(active ? null : cat.key)}
+                      aria-pressed={active}
+                      className={`text-left rounded-lg border-2 p-3 transition ${
+                        active
+                          ? `${cat.borderClass} ${cat.bgClass} shadow-sm`
+                          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className="text-xl">{cat.icon}</div>
+                      <p className={`mt-1 text-xs font-semibold ${active ? cat.textClass : "text-slate-900"}`}>{cat.label}</p>
+                      <div className="mt-1 flex items-center justify-between gap-1 text-[11px]">
+                        <span className="text-slate-500">{counts.total} total</span>
+                        <span className="font-semibold text-emerald-700">{counts.completed} ✓</span>
+                      </div>
+                      <div className="mt-1.5 h-1 rounded-full bg-slate-200 overflow-hidden">
+                        <div className={`h-full ${cat.barClass}`} style={{ width: `${pct}%` }} />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* ── Pending Induction Requests ── */}
+            <section aria-labelledby="pending-heading" className="bg-white border border-slate-200 rounded-2xl mb-6">
+              <header className="px-5 py-4 border-b border-slate-200">
+                <h2 id="pending-heading" className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                  <span aria-hidden="true">📋</span> Pending Induction Requests
+                  <span className="inline-flex items-center justify-center min-w-[20px] h-5 rounded-full bg-blue-600 text-white text-[11px] font-semibold px-1.5">
+                    {requestsForCard.length}
+                  </span>
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500">Queued from HR dashboard. Review and accept to generate an induction link.</p>
+              </header>
+              {requestsForCard.length === 0 ? (
+                <p className="px-5 py-8 text-center text-sm text-slate-500 italic">No pending requests.</p>
+              ) : (
+                <ul className="divide-y divide-slate-200">
+                  {requestsForCard.map((req) => {
+                    const isPending = requestActionPending.has(req.id);
+                    const errorMsg = requestActionErrors.get(req.id);
+                    return (
+                      <li key={req.id} className="px-5 py-3 flex flex-wrap items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-slate-200 text-slate-700 font-semibold text-xs flex items-center justify-center shrink-0" aria-hidden="true">
+                          {initialsFromName(req.fullName)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-slate-900 truncate">{req.fullName}</p>
+                          <p className="text-xs text-slate-500 truncate">
+                            {req.departmentName ?? "—"} · {req.position ?? "—"} · requested {formatRelativeTime(req.triggeredAt)}
+                          </p>
+                          {errorMsg && (
+                            <p className="text-xs text-red-700 mt-1 inline-flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3" aria-hidden="true" />
+                              {errorMsg}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleAcceptRequest(req.id)}
+                            disabled={isPending}
+                            className="inline-flex items-center rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                          >
+                            {isPending ? "…" : "Accept"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeclineRequest(req.id)}
+                            disabled={isPending}
+                            className="inline-flex items-center rounded-md border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                          >
+                            {isPending ? "…" : "Decline"}
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+
+            {/* ── Onboarding Candidates Table ── */}
+            <section aria-labelledby="cand-heading" className="bg-white border border-slate-200 rounded-2xl mb-6">
+              <header className="px-5 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                <h2 id="cand-heading" className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                  Onboarding Candidates
+                  <span className="inline-flex items-center justify-center min-w-[20px] h-5 rounded-full bg-slate-200 text-slate-700 text-[11px] font-semibold px-1.5">
+                    {filteredProfiles.length}
+                  </span>
+                </h2>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="🔍 Search name or email…"
+                    className="rounded-md border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-blue-500 focus:outline-none w-56"
+                  />
+                </div>
+              </header>
+              {filteredProfiles.length === 0 ? (
+                <p className="px-5 py-8 text-center text-sm text-slate-500 italic">
+                  {profilesForStats.length === 0
+                    ? "No active candidates in the pipeline yet."
+                    : "No candidates match the current filter."}
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th scope="col" className="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Employee</th>
+                        <th scope="col" className="px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Type</th>
+                        <th scope="col" className="px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Start</th>
+                        <th scope="col" className="px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Progress</th>
+                        <th scope="col" className="px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                        <th scope="col" className="px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider sr-only">View</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {filteredProfiles.map((p) => {
+                        const pct = p.totalSteps > 0 ? Math.round((p.completedSteps / p.totalSteps) * 100) : 0;
+                        return (
+                          <tr key={p.id} className="hover:bg-slate-50">
+                            <td className="px-5 py-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-full bg-slate-200 text-slate-700 font-semibold text-xs flex items-center justify-center shrink-0" aria-hidden="true">
+                                  {initialsFromName(p.employeeName)}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold text-slate-900 truncate">{p.employeeName}</p>
+                                  <p className="text-xs text-slate-500 truncate">{p.employeeEmail}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-3 py-3 text-xs text-slate-700">{categoryLabelForTemplate(p.workflowTemplate)}</td>
+                            <td className="px-3 py-3 text-xs text-slate-700 whitespace-nowrap">{formatDateShort(p.startDate)}</td>
+                            <td className="px-3 py-3 min-w-[140px]">
+                              <p className="text-[11px] text-slate-600 mb-1">{p.completedSteps}/{p.totalSteps} steps</p>
+                              <div className="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
+                                <div className="h-full bg-blue-500" style={{ width: `${pct}%` }} />
+                              </div>
+                            </td>
+                            <td className="px-3 py-3">
+                              <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${statusBadgeClasses(p.status)}`}>
+                                {p.status}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3 text-right">
+                              <Link
+                                href={`/induction/${p.linkToken}`}
+                                className="inline-flex items-center text-xs font-semibold text-blue-600 hover:text-blue-700"
+                                title="Open candidate's induction page"
+                              >
+                                View →
+                              </Link>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </>
+        )}
+
+        {showHRLayout && (
+          <div className="mb-6">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+              Upcoming Hires (±1 week window)
+            </h2>
+            <p className="text-xs text-slate-500">
+              Use this section to add employees nearing their start date to the induction queue.
+            </p>
+          </div>
+        )}
 
         <div className={`grid grid-cols-1 ${view === "both" ? "lg:grid-cols-2" : ""} gap-6 mb-8`}>
           {showOnboarding && (
@@ -682,5 +1083,27 @@ function InteractiveWorkflowSection({
         </div>
       </div>
     </article>
+  );
+}
+
+/** Phase 2B stat card with a colored top accent bar. */
+function StatCard({
+  label,
+  value,
+  subtitle,
+  accentClass,
+}: {
+  label: string;
+  value: number;
+  subtitle: string;
+  accentClass: string;
+}) {
+  return (
+    <div className="relative bg-white border border-slate-200 rounded-2xl p-4 overflow-hidden">
+      <div className={`absolute top-0 left-0 right-0 h-1 ${accentClass}`} aria-hidden="true" />
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</p>
+      <p className="mt-2 text-3xl font-bold text-slate-900 tabular-nums leading-none">{value}</p>
+      <p className="mt-1.5 text-[11px] text-slate-500">{subtitle}</p>
+    </div>
   );
 }

@@ -10,8 +10,10 @@ import {
   getCombinedUpcomingExits,
   getCombinedUpcomingHires,
   getOwnInductionView,
+  listAllInductionProfiles,
   listAllSubstepTemplates,
   listDepartments,
+  listPendingInductionRequests,
 } from "@/app/induction/queries";
 import {
   shouldRunSync,
@@ -73,17 +75,38 @@ export default async function OnboardingDashboardPage({ searchParams }: PageProp
   // week before through the week after start_date (still onboarding either
   // way). Offboarding only shows future leavers (employees who already left
   // can't be inducted) within the next 2 weeks so they have time to settle.
-  const [hiresAll, exitsAll, ownInduction, substepTemplates, departments] = await Promise.all([
+  // Onboarding view (Phase 2B): fetch all profiles + pending requests
+  // for the stats row, category filter, pending list, and candidates table.
+  // Offboarding view: skip these — keeps the original lightweight payload.
+  const fetchOnboardingExtras = view === "onboarding";
+
+  const [
+    hiresAll,
+    exitsAll,
+    ownInduction,
+    substepTemplates,
+    departments,
+    allProfiles,
+    pendingRequests,
+  ] = await Promise.all([
     fetchHires ? getCombinedUpcomingHires(7, 7) : Promise.resolve([]),
     fetchExits ? getCombinedUpcomingExits(14, 0) : Promise.resolve([]),
     actor ? getOwnInductionView(actor.user_id) : Promise.resolve(null),
     listAllSubstepTemplates(),
     listDepartments(),
+    fetchOnboardingExtras ? listAllInductionProfiles() : Promise.resolve([]),
+    fetchOnboardingExtras ? listPendingInductionRequests() : Promise.resolve([]),
   ]);
 
   const hires = hiresAll.filter((h) => Math.abs(h.daysUntilStart) <= 7);
   const exits = exitsAll.filter(
     (e) => e.daysUntilEnd >= 0 && e.daysUntilEnd <= 14,
+  );
+
+  // For the new HR view: only show onboarding profiles (not offboarding) in
+  // the candidates table + stats, and only active ones (not archived).
+  const onboardingProfiles = allProfiles.filter(
+    (p) => p.inductionType !== "Offboarding" && !p.isArchived,
   );
 
   const userEmail = session.user.email;
@@ -103,6 +126,8 @@ export default async function OnboardingDashboardPage({ searchParams }: PageProp
             isManager={canManage}
             substepTemplates={substepTemplates}
             departments={departments}
+            onboardingProfiles={onboardingProfiles}
+            pendingRequests={pendingRequests}
           />
         </div>
       </div>
