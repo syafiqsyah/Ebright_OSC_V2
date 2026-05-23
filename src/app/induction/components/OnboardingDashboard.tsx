@@ -908,8 +908,11 @@ export default function OnboardingDashboard({
           )}
         </div>
 
+        {/* The workflow-preview swimlane (template tabs + dept dropdown +
+            step cards) is hidden in the HR onboarding view per spec.
+            Still rendered for ?type=offboarding and ?type=both views. */}
         <div className="space-y-6">
-          {showOnboarding && (
+          {showOnboarding && !showHRLayout && (
             <InteractiveWorkflowSection
               kind="Onboarding"
               templateSteps={WORKFLOW_TEMPLATES.Standard}
