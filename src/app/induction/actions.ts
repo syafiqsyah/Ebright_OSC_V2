@@ -619,6 +619,59 @@ export async function acceptInductionRequest(
   }
 }
 
+export interface DeclineInductionRequestResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * Decline a pending induction request — HR/Admin only.
+ *
+ * Updates induction_request.status = "declined". The DB unique constraint
+ * (one open request per user where status <> 'completed') means a declined
+ * row keeps the user "blocked" until the row is removed or status changes
+ * again. That matches the spec's "removes from queue" semantics for the
+ * HR-facing list.
+ */
+export async function declineInductionRequest(
+  requestId: number,
+): Promise<DeclineInductionRequestResult> {
+  const auth = await loadActorAndAuthorize();
+  if (!auth.ok) return { ok: false, error: auth.error };
+
+  if (!Number.isFinite(requestId) || requestId <= 0) {
+    return { ok: false, error: "Invalid request id." };
+  }
+
+  const request = await prisma.induction_request.findUnique({
+    where: { id: requestId },
+    select: { id: true, status: true },
+  });
+  if (!request) return { ok: false, error: "Request not found." };
+  if (request.status !== "pending") {
+    return {
+      ok: false,
+      error: `Cannot decline a request with status "${request.status}".`,
+    };
+  }
+
+  try {
+    await prisma.induction_request.update({
+      where: { id: requestId },
+      data: { status: "declined" },
+    });
+
+    revalidatePath("/induction/control-centre");
+    revalidatePath("/induction/onboarding-dashboard");
+    revalidatePath("/dashboards/hrms");
+
+    return { ok: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown database error.";
+    return { ok: false, error: `Could not decline request: ${msg}` };
+  }
+}
+
 export interface MarkStepCompleteResult {
   ok: boolean;
   error?: string;
