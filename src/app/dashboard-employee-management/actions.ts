@@ -1,14 +1,44 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { STAFF_ROLE_ID } from "@/lib/employeeQueries";
 import { titleCaseName } from "@/lib/text";
+import { WORKFLOW_TEMPLATES, computeStepDueDate, isKnownTemplate } from "@/app/induction/templates";
+
+export interface OnboardingCredentials {
+  candidateName: string;
+  candidateEmail: string;
+  username: string;
+  tempPassword: string;
+  loginLink: string;
+}
 
 export interface CreateEmployeeResult {
   ok: boolean;
   error?: string;
+  /** Returned when assign_to_onboarding=on so the form can render the
+   *  credential overlay instead of redirecting away. */
+  credentials?: OnboardingCredentials;
+}
+
+const ONBOARDING_TOKEN_TTL_DAYS = 30;
+
+function generateOnboardingUsername(email: string): string {
+  return email.split("@")[0]?.toLowerCase().replace(/[^a-z0-9]/g, "") ?? "";
+}
+
+function generateOnboardingTempPassword(): string {
+  return "eBright@" + String(Math.floor(1000 + Math.random() * 9000));
+}
+
+function expiryFromNow(ttlDays = ONBOARDING_TOKEN_TTL_DAYS): Date {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + ttlDays);
+  return d;
 }
 
 function s(formData: FormData, key: string): string {
@@ -79,6 +109,32 @@ export async function createEmployee(_: CreateEmployeeResult | null, formData: F
   const emergencyPhone = s(formData, "emergencyPhone") || null;
   const emergencyRelation = s(formData, "emergencyRelation") || null;
 
+  // Optional: "Assign to onboarding" toggle on the Employment tab.
+  // When on, the same transaction also creates an induction_profile
+  // (status=Sent) and seeds its induction_step rows from the chosen
+  // workflow template. Validation happens before the transaction so we
+  // never half-create anything.
+  const assignOnboarding = formData.get("assign_to_onboarding") === "on";
+  const onbTemplate = s(formData, "workflow_template");
+  const onbStartDateRaw = s(formData, "onboarding_start_date");
+  const onbBuddyIdRaw = s(formData, "buddy_user_id");
+
+  let onbStartDate: Date | null = null;
+  let onbBuddyUserId: number | null = null;
+  if (assignOnboarding) {
+    if (!isKnownTemplate(onbTemplate)) {
+      return { ok: false, error: "Please pick a workflow template for onboarding." };
+    }
+    onbStartDate = dateOrNull(onbStartDateRaw);
+    if (!onbStartDate) {
+      return { ok: false, error: "Onboarding start date is required when assigning onboarding." };
+    }
+    if (onbBuddyIdRaw) {
+      const parsed = Number.parseInt(onbBuddyIdRaw, 10);
+      onbBuddyUserId = Number.isFinite(parsed) ? parsed : null;
+    }
+  }
+
   const existing = await prisma.users.findUnique({ where: { email }, select: { user_id: true } });
   if (existing) return { ok: false, error: `Email "${email}" is already registered.` };
 
@@ -87,8 +143,14 @@ export async function createEmployee(_: CreateEmployeeResult | null, formData: F
     if (dupe) return { ok: false, error: `Employee ID "${employeeId}" is already taken.` };
   }
 
+  // Pre-generate onboarding credential bits (only used when toggle is on).
+  const onbToken = randomBytes(32).toString("hex");
+  const onbExpiresAt = expiryFromNow();
+  const onbUsername = generateOnboardingUsername(email);
+  const onbTempPassword = generateOnboardingTempPassword();
+
   try {
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const user = await tx.users.create({
         data: {
           email,
@@ -149,6 +211,34 @@ export async function createEmployee(_: CreateEmployeeResult | null, formData: F
           },
         });
       }
+
+      if (assignOnboarding && onbStartDate) {
+        const templateSteps = WORKFLOW_TEMPLATES[onbTemplate];
+        const profile = await tx.induction_profile.create({
+          data: {
+            user_id: user.user_id,
+            induction_type: "Onboarding",
+            workflow_template: onbTemplate,
+            buddy_user_id: onbBuddyUserId,
+            link_token: onbToken,
+            link_expires_at: onbExpiresAt,
+            status: "Sent",
+            start_date: onbStartDate,
+            created_by: user.user_id,
+          },
+          select: { id: true },
+        });
+        await tx.induction_step.createMany({
+          data: templateSteps.map((step) => ({
+            induction_profile_id: profile.id,
+            step_number: step.stepNumber,
+            title: step.title,
+            description: step.description,
+            due_date: computeStepDueDate(onbStartDate as Date, step.daysFromStart),
+            status: "Pending",
+          })),
+        });
+      }
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown database error.";
@@ -156,6 +246,35 @@ export async function createEmployee(_: CreateEmployeeResult | null, formData: F
   }
 
   revalidatePath("/dashboard-employee-management");
+
+  if (assignOnboarding) {
+    revalidatePath("/induction/onboarding-dashboard");
+    const baseUrl = process.env.NEXTAUTH_URL ?? "";
+    const loginLink = `${baseUrl}/induction/${onbToken}`;
+    // Real email send is stubbed — credentials logged to server console
+    // and shown to HR via the credential overlay in the form.
+    console.info(
+      "[onboarding] mock email queued for new candidate:",
+      JSON.stringify({
+        to: email,
+        recipient: titleCaseName(fullName),
+        username: onbUsername,
+        tempPassword: onbTempPassword,
+        loginLink,
+      }),
+    );
+    return {
+      ok: true,
+      credentials: {
+        candidateName: titleCaseName(fullName),
+        candidateEmail: email,
+        username: onbUsername,
+        tempPassword: onbTempPassword,
+        loginLink,
+      },
+    };
+  }
+
   redirect("/dashboard-employee-management");
 }
 

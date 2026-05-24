@@ -126,6 +126,9 @@ export const DAY3_TASKS: Record<EmployeeTypeKey, SpecTask[]> = {
     { title: "Attendance Report at Branch", actor: "Candidate" },
     { title: "Train with Full-time Coach", actor: "Full-time Coach" },
     { title: "Day 3 Video", actor: "Candidate" },
+    // Final candidate-actor task — ticking this completes Day 3 and
+    // unlocks the 3-Week Branch Onboarding section below the day tabs.
+    { title: "Start onboarding training", actor: "Candidate" },
   ],
   "coach-part": [
     { title: "Attendance Report", actor: "Candidate" },
@@ -137,6 +140,9 @@ export const DAY3_TASKS: Record<EmployeeTypeKey, SpecTask[]> = {
     { title: "Attendance Report at Branch", actor: "Candidate" },
     { title: "Meet Branch Manager", actor: "Full-time Coach" },
     { title: "Day 3 Video", actor: "Candidate" },
+    // Final candidate-actor task — ticking this completes Day 3 and
+    // unlocks the 3-Week Branch Onboarding section below the day tabs.
+    { title: "Start onboarding training", actor: "Candidate" },
   ],
   "fulltime-hq": [
     { title: "Attendance Report", actor: "Candidate" },
