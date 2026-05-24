@@ -30,6 +30,11 @@ import type {
 } from "@/app/induction/queries";
 import type { BranchOpt } from "@/lib/employeeQueries";
 import { AssignRoleModal, type ActiveUserOption } from "./AssignRoleModal";
+import {
+  CreateInductionProfileModal,
+  type ModalState as CreateModalState,
+} from "./CreateInductionProfileModal";
+import type { InductionEmployeeOption } from "@/app/induction/queries";
 
 // Inline copy of groupSubstepsByParent — queries.ts is server-only so its
 // runtime helpers can't be imported into this client component.
@@ -111,6 +116,9 @@ interface OnboardingDashboardProps {
   /** Phase 2B+: active users (HR/HOD/etc) for the "Reports To" dropdown
    *  in the Assign Role modal. */
   activeUsers?: ActiveUserOption[];
+  /** Phase B: eligible employees for the Create Induction Profile modal
+   *  email-lookup. Only populated when view === "onboarding". */
+  eligibleEmployees?: InductionEmployeeOption[];
 }
 
 // Phase 2B: 5 employee-type categories per spec v2. Keys map to
@@ -243,6 +251,7 @@ export default function OnboardingDashboard({
   branches,
   branchByUserId,
   activeUsers,
+  eligibleEmployees,
 }: OnboardingDashboardProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -257,6 +266,8 @@ export default function OnboardingDashboard({
   const [requestActionErrors, setRequestActionErrors] = useState<Map<number, string>>(new Map());
   // Phase 2B+ state — Assign Role modal target.
   const [assigningProfile, setAssigningProfile] = useState<PendingInductionRow | null>(null);
+  // Phase B state — Create Induction Profile modal.
+  const [createModalState, setCreateModalState] = useState<CreateModalState>({ mode: "closed" });
 
   const showOnboarding = view !== "offboarding";
   const showOffboarding = view !== "onboarding";
@@ -288,6 +299,7 @@ export default function OnboardingDashboard({
       next.delete(requestId);
       return next;
     });
+    const matchingRequest = requestsForCard.find((r) => r.id === requestId);
     startTransition(async () => {
       const result = await acceptInductionRequest(requestId);
       setRequestActionPending((p) => {
@@ -299,9 +311,32 @@ export default function OnboardingDashboard({
         setRequestActionErrors((e) =>
           new Map(e).set(requestId, result.error ?? "Failed to accept"),
         );
-      } else {
-        router.refresh();
+        return;
       }
+      // Phase B: show the credential screen with the generated link
+      if (result.trainingLink && matchingRequest) {
+        const username =
+          matchingRequest.email.split("@")[0]?.toLowerCase().replace(/[^a-z0-9]/g, "") ?? "";
+        const tempPassword = "eBright@" + String(Math.floor(1000 + Math.random() * 9000));
+        // TODO: real email send — currently just logged to console
+        console.info("[induction] mock email queued (accept):", {
+          to: matchingRequest.email,
+          username,
+          tempPassword,
+          loginLink: result.trainingLink,
+        });
+        setCreateModalState({
+          mode: "credential",
+          data: {
+            candidateName: matchingRequest.fullName,
+            candidateEmail: matchingRequest.email,
+            username,
+            tempPassword,
+            loginLink: result.trainingLink,
+          },
+        });
+      }
+      router.refresh();
     });
   };
 
@@ -417,9 +452,8 @@ export default function OnboardingDashboard({
             {showHRLayout && (
               <button
                 type="button"
-                disabled
-                title="Create Induction Profile modal — coming in Phase B"
-                className="inline-flex items-center gap-1.5 rounded-md bg-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-500 cursor-not-allowed"
+                onClick={() => setCreateModalState({ mode: "form" })}
+                className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
               >
                 ＋ New Candidate
               </button>
@@ -683,6 +717,16 @@ export default function OnboardingDashboard({
               setAssigningProfile(null);
               router.refresh();
             }}
+          />
+        )}
+
+        {/* ── Create Induction Profile Modal (Phase B) ── */}
+        {showHRLayout && eligibleEmployees && (
+          <CreateInductionProfileModal
+            state={createModalState}
+            onClose={() => setCreateModalState({ mode: "closed" })}
+            employees={eligibleEmployees}
+            onCreated={() => router.refresh()}
           />
         )}
 
