@@ -495,11 +495,11 @@ export default function OnboardingDashboard({
                           : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
                       }`}
                     >
-                      <div className="text-xl">{cat.icon}</div>
-                      <p className={`mt-1 text-xs font-semibold ${active ? cat.textClass : "text-slate-900"}`}>{cat.label}</p>
-                      <div className="mt-1 flex items-center justify-between gap-1 text-[11px]">
+                      {/* Per Phase A spec: no icons on category cards */}
+                      <p className={`text-sm font-semibold ${active ? cat.textClass : "text-slate-900"}`}>{cat.label}</p>
+                      <div className="mt-1.5 flex items-center justify-between gap-1 text-[11px]">
                         <span className="text-slate-500">{counts.total} total</span>
-                        <span className="font-semibold text-emerald-700">{counts.completed} ✓</span>
+                        <span className="font-semibold text-emerald-700">{counts.completed} done</span>
                       </div>
                       <div className="mt-1.5 h-1 rounded-full bg-slate-200 overflow-hidden">
                         <div className={`h-full ${cat.barClass}`} style={{ width: `${pct}%` }} />
@@ -652,9 +652,9 @@ export default function OnboardingDashboard({
                                 </button>
                               ) : (
                                 <Link
-                                  href={`/induction/${p.linkToken}`}
+                                  href={`/induction/onboarding-dashboard/${p.id}`}
                                   className="inline-flex items-center text-xs font-semibold text-blue-600 hover:text-blue-700"
-                                  title="Open candidate's induction page"
+                                  title="Open candidate detail view"
                                 >
                                   View →
                                 </Link>
