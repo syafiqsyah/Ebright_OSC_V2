@@ -88,7 +88,7 @@ export function HRMSSidebar({
       items: [
         // Control Centre item removed in Phase D — all induction management
         // is now done from /induction/onboarding-dashboard?type=onboarding
-        { href: "#", label: "Workflow Center", icon: Workflow, disabled: true },
+        { href: "/dashboards/workflow-center", label: "Workflow Center", icon: Workflow },
         { href: "#", label: "Settings", icon: Settings, disabled: true },
       ],
     },
