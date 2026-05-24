@@ -3,7 +3,6 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/nextauth";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/app/components/AppShell";
-import { HRMSSidebar } from "@/app/induction/components/HRMSSidebar";
 import { canManageInductions } from "@/app/induction/roles";
 import { listBranches } from "@/lib/employeeQueries";
 import { listDepartments } from "@/app/induction/queries";
@@ -119,18 +118,13 @@ export default async function CandidateDetailPage({ params }: PageProps) {
 
   return (
     <AppShell email={userEmail} role={userRole} name={userName}>
-      <div className="flex min-h-full bg-slate-50">
-        <HRMSSidebar canManageInductions={canManage} />
-        <div className="flex-1 min-w-0">
-          <CandidateDetailView
-            profile={profile}
-            completedStepTitles={completedStepTitles}
-            branches={branches}
-            departments={departments}
-            activeUsers={activeUsers}
-          />
-        </div>
-      </div>
+      <CandidateDetailView
+        profile={profile}
+        completedStepTitles={completedStepTitles}
+        branches={branches}
+        departments={departments}
+        activeUsers={activeUsers}
+      />
     </AppShell>
   );
 }

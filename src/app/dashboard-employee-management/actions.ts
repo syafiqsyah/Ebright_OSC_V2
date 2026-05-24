@@ -3,8 +3,13 @@
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+
+// Transaction client type derived from the prisma singleton — avoids
+// importing the Prisma namespace, which some IDE TS servers fail to
+// resolve from @prisma/client v7's package exports even though tsc
+// builds clean.
+type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 import { STAFF_ROLE_ID } from "@/lib/employeeQueries";
 import { titleCaseName } from "@/lib/text";
 import { WORKFLOW_TEMPLATES, computeStepDueDate, isKnownTemplate } from "@/app/induction/templates";
@@ -150,7 +155,7 @@ export async function createEmployee(_: CreateEmployeeResult | null, formData: F
   const onbTempPassword = generateOnboardingTempPassword();
 
   try {
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await prisma.$transaction(async (tx: TxClient) => {
       const user = await tx.users.create({
         data: {
           email,

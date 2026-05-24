@@ -4,7 +4,6 @@ import { authOptions } from "@/lib/nextauth";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/app/components/AppShell";
 import OnboardingDashboard from "@/app/induction/components/OnboardingDashboard";
-import { HRMSSidebar } from "@/app/induction/components/HRMSSidebar";
 import { canManageInductions } from "@/app/induction/roles";
 import { listBranches } from "@/lib/employeeQueries";
 import {
@@ -130,26 +129,21 @@ export default async function OnboardingDashboardPage({ searchParams }: PageProp
 
   return (
     <AppShell email={userEmail} role={userRole} name={userName}>
-      <div className="flex min-h-full bg-slate-50">
-        <HRMSSidebar canManageInductions={canManage} />
-        <div className="flex-1 min-w-0">
-          <OnboardingDashboard
-            hires={hires}
-            exits={exits}
-            view={view}
-            ownInduction={ownInduction}
-            isManager={canManage}
-            substepTemplates={substepTemplates}
-            departments={departments}
-            onboardingProfiles={onboardingProfiles}
-            pendingRequests={pendingRequests}
-            branches={branches}
-            branchByUserId={branchByUserId}
-            activeUsers={activeUsers}
-            eligibleEmployees={eligibleEmployees}
-          />
-        </div>
-      </div>
+      <OnboardingDashboard
+        hires={hires}
+        exits={exits}
+        view={view}
+        ownInduction={ownInduction}
+        isManager={canManage}
+        substepTemplates={substepTemplates}
+        departments={departments}
+        onboardingProfiles={onboardingProfiles}
+        pendingRequests={pendingRequests}
+        branches={branches}
+        branchByUserId={branchByUserId}
+        activeUsers={activeUsers}
+        eligibleEmployees={eligibleEmployees}
+      />
     </AppShell>
   );
 }

@@ -14,11 +14,13 @@ import {
   Home,
   ChevronRight,
   Sparkles,
+  Workflow,
 } from "lucide-react";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
 const MANAGE_INDUCTION_ROLE_TYPES = new Set(["superadmin", "hr", "od"]);
+const WORKFLOW_CENTER_ROLE_TYPES = new Set(["superadmin", "admin", "hr", "od", "hod"]);
 
 interface HrmsModule {
   id: string;
@@ -109,6 +111,16 @@ const modules: HrmsModule[] = [
     accent: "bg-blue-600",
     accentHover: "group-hover:bg-blue-700",
     requiredRoles: MANAGE_INDUCTION_ROLE_TYPES,
+  },
+  {
+    id: "workflow-center",
+    title: "Workflow Center",
+    description: "Manage department onboarding workflows",
+    href: "/dashboards/workflow-center",
+    Icon: Workflow,
+    accent: "bg-violet-600",
+    accentHover: "group-hover:bg-violet-700",
+    requiredRoles: WORKFLOW_CENTER_ROLE_TYPES,
   },
   {
     id: "manpower-cost-report",
