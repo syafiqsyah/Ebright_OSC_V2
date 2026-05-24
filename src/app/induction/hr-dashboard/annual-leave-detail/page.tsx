@@ -5,7 +5,6 @@ import { ArrowLeft } from "lucide-react";
 import { authOptions } from "@/lib/nextauth";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/app/components/AppShell";
-import { HRMSSidebar } from "@/app/induction/components/HRMSSidebar";
 import { canManageInductions } from "@/app/induction/roles";
 import { getCombinedAnnualLeavesUpcoming } from "@/app/induction/queries";
 
@@ -34,9 +33,7 @@ export default async function AnnualLeaveDetailPage() {
 
   return (
     <AppShell email={userEmail} role={userRole} name={userName}>
-      <div className="flex min-h-full bg-slate-50">
-        <HRMSSidebar canManageInductions={canManage} />
-        <div className="flex-1 min-w-0">
+      <div className="min-h-full bg-slate-50">
           <header className="bg-indigo-600 text-white px-6 py-5">
             <div className="max-w-6xl mx-auto">
               <Link
@@ -105,7 +102,6 @@ export default async function AnnualLeaveDetailPage() {
               </table>
             </div>
           </div>
-        </div>
       </div>
     </AppShell>
   );

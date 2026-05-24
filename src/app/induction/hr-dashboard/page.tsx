@@ -6,7 +6,6 @@ import { authOptions } from "@/lib/nextauth";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/app/components/AppShell";
 import { canManageInductions } from "@/app/induction/roles";
-import { HRMSSidebar } from "@/app/induction/components/HRMSSidebar";
 import { OnboardingCard } from "@/app/induction/components/OnboardingCard";
 import { OffboardingCard } from "@/app/induction/components/OffboardingCard";
 import { MCCard } from "@/app/induction/components/MCCard";
@@ -84,10 +83,8 @@ export default async function HrDashboardPage() {
 
   return (
     <AppShell email={userEmail} role={userRole} name={userName}>
-      <div className="flex min-h-full bg-slate-50">
-        <HRMSSidebar canManageInductions={canManage} />
-        <div className="flex-1 min-w-0">
-          <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="min-h-full bg-slate-50">
+        <div className="max-w-7xl mx-auto px-6 py-8">
             <header className="flex flex-wrap items-end justify-between gap-4 mb-8">
               <div>
                 <h1 className="text-3xl font-semibold text-slate-900 tracking-tight">
@@ -120,7 +117,6 @@ export default async function HrDashboardPage() {
             </div>
           </div>
         </div>
-      </div>
     </AppShell>
   );
 }

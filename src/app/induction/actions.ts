@@ -3,9 +3,14 @@
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth/next";
-import { Prisma } from "@prisma/client";
 import { authOptions } from "@/lib/nextauth";
 import { prisma } from "@/lib/prisma";
+
+// Transaction client type derived from the prisma singleton — avoids
+// importing the Prisma namespace, which some IDE TS servers fail to
+// resolve from @prisma/client v7's package exports even though tsc
+// builds clean.
+type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 import { uploadToDrive } from "@/lib/drive";
 import { canManageInductions } from "@/app/induction/roles";
 import {
@@ -194,7 +199,7 @@ export async function createInduction(
   const expiresAt = expiryFromNow();
 
   try {
-    const created = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const created = await prisma.$transaction(async (tx: TxClient) => {
       const profile = await tx.induction_profile.create({
         data: {
           user_id: userId,
@@ -393,7 +398,7 @@ export async function createInductionRequestForEbrightCandidate(
   });
 
   try {
-    const newUser = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const newUser = await prisma.$transaction(async (tx: TxClient) => {
       // Ensure unique email — append source_id if the slug collides.
       let email = baseEmail;
       const existing = await tx.users.findUnique({ where: { email } });
@@ -554,7 +559,7 @@ export async function acceptInductionRequest(
   const templateSteps = WORKFLOW_TEMPLATES[templateName];
 
   try {
-    const profile = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const profile = await prisma.$transaction(async (tx: TxClient) => {
       const created = await tx.induction_profile.create({
         data: {
           user_id: request.user_id,
@@ -771,7 +776,7 @@ export async function assignCandidateRole(
   });
 
   try {
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await prisma.$transaction(async (tx: TxClient) => {
       if (existingEmployment) {
         await tx.employment.update({
           where: { employment_id: existingEmployment.employment_id },
@@ -899,7 +904,7 @@ export async function markStepCompleteByToken(
   }
 
   try {
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await prisma.$transaction(async (tx: TxClient) => {
       await tx.induction_step.update({
         where: { id: stepId },
         data: {
@@ -1064,7 +1069,7 @@ export async function submitStepEvidenceByToken(
   }
 
   try {
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await prisma.$transaction(async (tx: TxClient) => {
       await tx.induction_step.update({
         where: { id: stepId },
         data: {
