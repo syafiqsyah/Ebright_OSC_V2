@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/nextauth";
 import { prisma } from "@/lib/prisma";
+import { getRequestBaseUrl } from "@/lib/baseUrl";
 
 // Transaction client type derived from the prisma singleton — avoids
 // importing the Prisma namespace, which some IDE TS servers fail to
@@ -540,16 +541,54 @@ export async function acceptInductionRequest(
 
   const existingProfile = await prisma.induction_profile.findUnique({
     where: { user_id: request.user_id },
-    select: { id: true },
+    select: { id: true, status: true, link_token: true },
   });
+
+  // New flow path: HR pre-created an induction_profile (status=Sent) via
+  // Save & Generate Link on the Employee form. First login created the
+  // pending request. Accept just promotes the profile to In Progress
+  // and marks the request accepted — no new steps to seed since the
+  // existing profile already has them.
   if (existingProfile) {
-    return {
-      ok: false,
-      error:
-        "This employee already has an induction profile. Regenerate its link from the profiles table instead.",
-    };
+    try {
+      await prisma.$transaction(async (tx: TxClient) => {
+        if (existingProfile.status === "Sent") {
+          await tx.induction_profile.update({
+            where: { id: existingProfile.id },
+            data: { status: "In Progress" },
+          });
+        }
+        await tx.induction_request.update({
+          where: { id: requestId },
+          data: {
+            status: "accepted",
+            accepted_at: new Date(),
+            induction_profile_id: existingProfile.id,
+          },
+        });
+      });
+
+      revalidatePath("/induction/onboarding-dashboard");
+      revalidatePath("/dashboards/hrms");
+      revalidatePath("/dashboard-employee-management");
+
+      const baseUrl = await getRequestBaseUrl();
+      const trainingLink = `${baseUrl}/induction/${existingProfile.link_token}`;
+      return {
+        ok: true,
+        trainingLink,
+        inductionProfileId: existingProfile.id,
+        token: existingProfile.link_token,
+      };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown database error.";
+      return { ok: false, error: `Could not accept request: ${msg}` };
+    }
   }
 
+  // Legacy path: no pre-existing profile (the old request-first flow
+  // used by the EbrightLeads bulk-add buttons). Create the profile +
+  // steps + accept the request, as before.
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
   const startDate = request.user.employment[0]?.start_date ?? today;
@@ -600,7 +639,7 @@ export async function acceptInductionRequest(
     revalidatePath("/induction/onboarding-dashboard");
     revalidatePath("/dashboards/hrms");
 
-    const baseUrl = process.env.NEXTAUTH_URL ?? "";
+    const baseUrl = await getRequestBaseUrl();
     const trainingLink = `${baseUrl}/induction/${token}`;
 
     console.info(

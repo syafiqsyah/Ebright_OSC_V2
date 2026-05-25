@@ -137,6 +137,12 @@ export default function EmployeeForm({
   const [onbStartDate, setOnbStartDate] = useState(() =>
     new Date().toISOString().slice(0, 10),
   );
+  // When HR changes the start date, the email-send date follows along
+  // unless they've manually changed it (tracked by sendEmailDirty).
+  const [onbSendEmailOn, setOnbSendEmailOn] = useState(() =>
+    new Date().toISOString().slice(0, 10),
+  );
+  const [sendEmailDirty, setSendEmailDirty] = useState(false);
   const [onbBuddyId, setOnbBuddyId] = useState("");
   const [branchId, setBranchId] = useState<string>(
     employee?.branchId ? String(employee.branchId) : "",
@@ -207,7 +213,17 @@ export default function EmployeeForm({
       >
         <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
           <CredentialScreen
-            data={state.credentials}
+            data={{
+              ...state.credentials,
+              // The candidate logs in via the standard /login page (not
+              // the token URL). Rebuild from the actual browser origin
+              // so HR sees a link they can confirm works from their
+              // session, regardless of NEXTAUTH_URL on the server.
+              loginLink:
+                typeof window !== "undefined"
+                  ? `${window.location.origin}/login`
+                  : state.credentials.loginLink,
+            }}
             onDone={() => {
               router.push("/dashboard-employee-management");
               router.refresh();
@@ -567,8 +583,30 @@ export default function EmployeeForm({
                         name="onboarding_start_date"
                         type="date"
                         value={onbStartDate}
-                        onChange={(e) => setOnbStartDate(e.target.value)}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setOnbStartDate(v);
+                          // Auto-sync the send date if HR hasn't manually
+                          // tweaked it — matches the spec default of
+                          // "same as the onboarding start date".
+                          if (!sendEmailDirty) setOnbSendEmailOn(v);
+                        }}
                         required
+                        className={inputCls}
+                      />
+                    </Field>
+                    <Field
+                      label="Send onboarding email on"
+                      hint="Defaults to the onboarding start date. Pick an earlier or later date to schedule the welcome email."
+                    >
+                      <input
+                        name="send_email_on"
+                        type="date"
+                        value={onbSendEmailOn}
+                        onChange={(e) => {
+                          setOnbSendEmailOn(e.target.value);
+                          setSendEmailDirty(true);
+                        }}
                         className={inputCls}
                       />
                     </Field>
