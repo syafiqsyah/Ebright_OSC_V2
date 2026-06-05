@@ -41,6 +41,7 @@ const ALL_DEPARTMENT_ROLES = new Set<WorkflowActorRole>([
 ]);
 const EDIT_ROLES = new Set<WorkflowActorRole>(["superadmin", "hod"]);
 const CREATE_ROLES = new Set<WorkflowActorRole>(["superadmin", "hod"]);
+const DELETE_ROLES = new Set<WorkflowActorRole>(["superadmin", "admin"]);
 
 /** Build the actor record for the currently-signed-in user. */
 export async function loadWorkflowActor(
@@ -86,6 +87,11 @@ export function canAccessWorkflowCenter(actor: WorkflowActor): boolean {
 /** Can this actor create new workflows? */
 export function canCreateWorkflow(actor: WorkflowActor): boolean {
   return CREATE_ROLES.has(actor.roleType);
+}
+
+/** Can this actor hard-delete a workflow? Superadmin / admin only. */
+export function canDeleteWorkflow(actor: WorkflowActor): boolean {
+  return DELETE_ROLES.has(actor.roleType);
 }
 
 /** Returns true if the actor can see ALL departments, false if scoped. */

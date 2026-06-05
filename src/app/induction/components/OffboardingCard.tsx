@@ -24,7 +24,7 @@ export function OffboardingCard({
         <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-rose-300/30 blur-3xl" />
         <div className="pointer-events-none absolute -left-10 -bottom-10 h-36 w-36 rounded-full bg-pink-300/20 blur-3xl" />
 
-        <div className="relative flex items-start justify-between">
+        <div className="relative flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-600 text-white shadow-md">
@@ -36,10 +36,8 @@ export function OffboardingCard({
             </div>
             <p className="mt-2 text-xs font-medium text-rose-700">{windowLabel}</p>
           </div>
-        </div>
 
-        <div className="relative mt-6 flex items-end justify-between">
-          <div>
+          <div className="text-right">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-700">
               Total
             </p>
@@ -47,6 +45,9 @@ export function OffboardingCard({
               {total}
             </p>
           </div>
+        </div>
+
+        <div className="relative mt-6 flex justify-end">
           <span className="rounded-full bg-rose-600/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-rose-800">
             Hover · Click
           </span>

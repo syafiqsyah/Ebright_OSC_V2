@@ -71,6 +71,27 @@ const modules: HrmsModule[] = [
     accentHover: "group-hover:bg-amber-700",
   },
   {
+    id: "hr-dashboard",
+    title: "HR Dashboard",
+    description: "Overview of onboarding, offboarding, MC & leave",
+    href: "/induction/hr-dashboard",
+    Icon: LayoutDashboard,
+    accent: "bg-blue-600",
+    accentHover: "group-hover:bg-blue-700",
+    requiredRoles: MANAGE_INDUCTION_ROLE_TYPES,
+  },
+  {
+    id: "manpower-cost-report",
+    title: "Manpower Cost Report",
+    description: "Breakdown of labor costs",
+    href: "/manpower-cost-report",
+    Icon: PiggyBank,
+    accent: "bg-teal-600",
+    accentHover: "group-hover:bg-teal-700",
+  },
+  // Induction Control Centre tile removed in Phase D — induction management
+  // is now done directly from the Onboarding tile (HR onboarding dashboard).
+  {
     id: "onboarding",
     title: "Onboarding",
     description: "Manage new employee inductions",
@@ -78,6 +99,16 @@ const modules: HrmsModule[] = [
     Icon: UserPlus,
     accent: "bg-emerald-600",
     accentHover: "group-hover:bg-emerald-700",
+    requiredRoles: MANAGE_INDUCTION_ROLE_TYPES,
+  },
+  {
+    id: "offboarding",
+    title: "Offboarding",
+    description: "Manage employee exits",
+    href: "/dashboards/offboarding",
+    Icon: UserMinus,
+    accent: "bg-rose-600",
+    accentHover: "group-hover:bg-rose-700",
     requiredRoles: MANAGE_INDUCTION_ROLE_TYPES,
   },
   {
@@ -91,28 +122,6 @@ const modules: HrmsModule[] = [
     requiredRoles: MANAGE_INDUCTION_ROLE_TYPES,
   },
   {
-    id: "offboarding",
-    title: "Offboarding",
-    description: "Manage employee exits",
-    href: "/dashboards/offboarding",
-    Icon: UserMinus,
-    accent: "bg-rose-600",
-    accentHover: "group-hover:bg-rose-700",
-    requiredRoles: MANAGE_INDUCTION_ROLE_TYPES,
-  },
-  // Induction Control Centre tile removed in Phase D — induction management
-  // is now done directly from the Onboarding tile (HR onboarding dashboard).
-  {
-    id: "hr-dashboard",
-    title: "HR Dashboard",
-    description: "Overview of onboarding, offboarding, MC & leave",
-    href: "/induction/hr-dashboard",
-    Icon: LayoutDashboard,
-    accent: "bg-blue-600",
-    accentHover: "group-hover:bg-blue-700",
-    requiredRoles: MANAGE_INDUCTION_ROLE_TYPES,
-  },
-  {
     id: "workflow-center",
     title: "Workflow Center",
     description: "Manage department onboarding workflows",
@@ -121,15 +130,6 @@ const modules: HrmsModule[] = [
     accent: "bg-violet-600",
     accentHover: "group-hover:bg-violet-700",
     requiredRoles: WORKFLOW_CENTER_ROLE_TYPES,
-  },
-  {
-    id: "manpower-cost-report",
-    title: "Manpower Cost Report",
-    description: "Breakdown of labor costs",
-    href: "/manpower-cost-report",
-    Icon: PiggyBank,
-    accent: "bg-teal-600",
-    accentHover: "group-hover:bg-teal-700",
   },
   {
     id: "staff-directory",

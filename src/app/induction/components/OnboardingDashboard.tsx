@@ -114,6 +114,8 @@ interface OnboardingDashboardProps {
   /** Phase 2B+: userId → branchName lookup for the Branch column in the
    *  candidates table. */
   branchByUserId?: Record<number, string | null>;
+  /** userId → departmentName lookup for the Department column. */
+  departmentByUserId?: Record<number, string | null>;
   /** Phase 2B+: active users (HR/HOD/etc) for the "Reports To" dropdown
    *  in the Assign Role modal. */
   activeUsers?: ActiveUserOption[];
@@ -244,6 +246,7 @@ export default function OnboardingDashboard({
   pendingRequests,
   branches,
   branchByUserId,
+  departmentByUserId,
   activeUsers,
   eligibleEmployees,
 }: OnboardingDashboardProps) {
@@ -499,12 +502,12 @@ export default function OnboardingDashboard({
                 isActive={statusFilter === ""}
               />
               <StatCard
-                label="Post-Onboarding"
-                value={stats.completed}
-                subtitle="Induction done, pending role assignment."
-                accentClass="bg-emerald-500"
-                onClick={() => setStatusFilter((cur) => (cur === "Completed" ? "" : "Completed"))}
-                isActive={statusFilter === "Completed"}
+                label="Pre-Onboarding"
+                value={stats.notStarted}
+                subtitle="Link sent, awaiting start."
+                accentClass="bg-rose-500"
+                onClick={() => setStatusFilter((cur) => (cur === "Not Started" ? "" : "Not Started"))}
+                isActive={statusFilter === "Not Started"}
               />
               <StatCard
                 label="In Progress"
@@ -515,12 +518,12 @@ export default function OnboardingDashboard({
                 isActive={statusFilter === "In Progress"}
               />
               <StatCard
-                label="Pre-Onboarding"
-                value={stats.notStarted}
-                subtitle="Link sent, awaiting start."
-                accentClass="bg-rose-500"
-                onClick={() => setStatusFilter((cur) => (cur === "Not Started" ? "" : "Not Started"))}
-                isActive={statusFilter === "Not Started"}
+                label="Post-Onboarding"
+                value={stats.completed}
+                subtitle="Induction done, pending role assignment."
+                accentClass="bg-emerald-500"
+                onClick={() => setStatusFilter((cur) => (cur === "Completed" ? "" : "Completed"))}
+                isActive={statusFilter === "Completed"}
               />
             </div>
 
@@ -574,14 +577,14 @@ export default function OnboardingDashboard({
                       type="button"
                       onClick={() => setCategoryFilter(active ? null : cat.key)}
                       aria-pressed={active}
-                      className={`text-left rounded-lg border-2 p-3 transition ${
+                      className={`text-left rounded-lg border-2 p-2 transition ${
                         active
                           ? `${cat.borderClass} ${cat.bgClass} shadow-sm`
                           : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
                       }`}
                     >
                       {/* Per Phase A spec: no icons on category cards */}
-                      <p className={`text-sm font-semibold ${active ? cat.textClass : "text-slate-900"}`}>{cat.label}</p>
+                      <p className={`text-xs font-semibold ${active ? cat.textClass : "text-slate-900"}`}>{cat.label}</p>
                       <div className="mt-1.5 flex items-center justify-between gap-1 text-[11px]">
                         <span className="text-slate-500">{counts.total} total</span>
                         <span className="font-semibold text-emerald-700">{counts.completed} done</span>
@@ -743,6 +746,7 @@ export default function OnboardingDashboard({
                         <th scope="col" className="px-5 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Employee</th>
                         <th scope="col" className="px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Type</th>
                         <th scope="col" className="px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Branch</th>
+                        <th scope="col" className="px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Department</th>
                         <th scope="col" className="px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Start</th>
                         <th scope="col" className="px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Progress</th>
                         <th scope="col" className="px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Status</th>
@@ -769,6 +773,7 @@ export default function OnboardingDashboard({
                             </td>
                             <td className="px-3 py-3 text-xs text-slate-700">{categoryLabelForTemplate(p.workflowTemplate)}</td>
                             <td className="px-3 py-3 text-xs font-mono text-slate-700">{branchName}</td>
+                            <td className="px-3 py-3 text-xs text-slate-700">{departmentByUserId?.[p.userId] ?? "—"}</td>
                             <td className="px-3 py-3 text-xs text-slate-700 whitespace-nowrap">{formatDateShort(p.startDate)}</td>
                             <td className="px-3 py-3 min-w-[140px]">
                               <p className="text-[11px] text-slate-600 mb-1">{p.completedSteps}/{p.totalSteps} steps</p>

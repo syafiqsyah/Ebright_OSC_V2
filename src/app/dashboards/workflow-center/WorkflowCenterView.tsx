@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ChevronRight, Home } from "lucide-react";
 import { CreateWorkflowModal } from "./CreateWorkflowModal";
@@ -51,6 +52,15 @@ export function WorkflowCenterView({
   const [activeTab, setActiveTab] = useState<number | "All">(initialTab);
   const [createOpen, setCreateOpen] = useState(false);
 
+  // Success banner after a workflow delete redirect (?deleted=1).
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [showDeleted, setShowDeleted] = useState(searchParams.get("deleted") === "1");
+  const dismissDeleted = () => {
+    setShowDeleted(false);
+    router.replace("/dashboards/workflow-center");
+  };
+
   const filtered =
     activeTab === "All"
       ? workflows
@@ -70,6 +80,26 @@ export function WorkflowCenterView({
           <ChevronRight className="w-4 h-4 text-slate-400" aria-hidden="true" />
           <span className="text-slate-900 font-medium">Workflow Center</span>
         </nav>
+
+        {showDeleted && (
+          <div
+            role="status"
+            className="mb-6 flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3"
+          >
+            <p className="flex items-center gap-2 text-sm font-medium text-emerald-800">
+              <span aria-hidden="true">✓</span>
+              Workflow deleted successfully
+            </p>
+            <button
+              type="button"
+              onClick={dismissDeleted}
+              aria-label="Dismiss"
+              className="px-1 text-lg leading-none text-emerald-700 hover:text-emerald-900"
+            >
+              ×
+            </button>
+          </div>
+        )}
 
         {/* Header */}
         <header className="flex flex-wrap items-end justify-between gap-4 mb-6">
