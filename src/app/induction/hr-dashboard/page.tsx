@@ -84,8 +84,12 @@ export default async function HrDashboardPage() {
   });
 
   // #5: Offboarding card now reflects the actual offboarding pipeline —
-  // offboarding_case records from the Offboarding module.
-  const offboardingPreview = offboardingCases.slice(0, 8).map((c) => ({
+  // active offboarding_case records (status !== "Completed"), matching the
+  // Offboarding dashboard's own "active cases" count.
+  const activeOffboardingCases = offboardingCases.filter(
+    (c) => c.status !== "Completed",
+  );
+  const offboardingPreview = activeOffboardingCases.slice(0, 8).map((c) => ({
     key: String(c.id),
     title: c.employeeName,
     subtitle: [c.departmentName, c.branchCode].filter(Boolean).join(" · ") || null,
@@ -129,7 +133,7 @@ export default async function HrDashboardPage() {
               />
               <LifecycleCard
                 variant="offboarding"
-                total={offboardingCases.length}
+                total={activeOffboardingCases.length}
                 windowLabel="Active offboarding cases"
                 previewItems={offboardingPreview}
               />
