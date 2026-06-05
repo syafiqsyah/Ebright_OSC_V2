@@ -8,12 +8,7 @@ import type {
   CandidatePanelRow,
   OverviewStats,
 } from "@/app/components/EmployeeDashboardOverviewSection";
-import {
-  listEmployees,
-  listBranches,
-  listDepartments,
-  EMPLOYEE_LIST_ROLE_IDS,
-} from "@/lib/employeeQueries";
+import { listEmployees, listBranches, listDepartments } from "@/lib/employeeQueries";
 
 export const dynamic = "force-dynamic";
 
@@ -35,15 +30,7 @@ export default async function EmployeeManagementPage() {
     listEmployees(),
     listBranches(),
     listDepartments(),
-    // Total Staff = the same employee population the table below shows
-    // (employee roles, not pending/archived) — NOT every active account,
-    // which includes synced/admin/candidate accounts.
-    prisma.users.count({
-      where: {
-        role_id: { in: EMPLOYEE_LIST_ROLE_IDS },
-        NOT: { status: { in: ["pending", "archive"] } },
-      },
-    }),
+    prisma.users.count({ where: { status: "active" } }),
     prisma.branch.count(),
     prisma.department.count(),
     prisma.induction_profile.count({
