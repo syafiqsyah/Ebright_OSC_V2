@@ -9,6 +9,7 @@ import {
   canCreateWorkflow,
   canEditWorkflowForDepartment,
   canAssignWorkflow,
+  canDeleteWorkflow,
 } from "@/lib/workflow/permissions";
 
 // Transaction client type — derived from the prisma singleton.
@@ -214,6 +215,53 @@ export async function archiveWorkflow(workflowId: number): Promise<ActionResult>
   });
   revalidatePath("/dashboards/workflow-center");
   revalidatePath(`/dashboards/workflow-center/${workflowId}`);
+  return { ok: true, workflowId };
+}
+
+// ─── Delete workflow (hard delete) ────────────────────────────────
+// Superadmin / admin only. Blocks deletion while candidates are still
+// assigned (archive instead) so no in-flight progress is destroyed.
+export async function deleteWorkflow(workflowId: number): Promise<ActionResult> {
+  const actor = await currentActor();
+  if (!actor) return { ok: false, error: "Not signed in." };
+  if (!canDeleteWorkflow(actor)) {
+    return { ok: false, error: "You don't have permission to delete workflows." };
+  }
+
+  const existing = await prisma.workflow_template.findUnique({
+    where: { id: workflowId },
+    select: { id: true },
+  });
+  if (!existing) return { ok: false, error: "Workflow not found." };
+
+  // Block when candidates are still assigned — archive is the safe path.
+  const assignedCount = await prisma.workflow_assignment.count({
+    where: { workflow_template_id: workflowId },
+  });
+  if (assignedCount > 0) {
+    return {
+      ok: false,
+      error: `Cannot delete: ${assignedCount} candidate${
+        assignedCount === 1 ? " is" : "s are"
+      } still assigned. Archive the workflow instead.`,
+    };
+  }
+
+  try {
+    // No assignments exist here (blocked above), so only steps + the
+    // template need removing — children first to satisfy FK constraints.
+    await prisma.$transaction(async (tx: TxClient) => {
+      await tx.workflow_step.deleteMany({
+        where: { workflow_template_id: workflowId },
+      });
+      await tx.workflow_template.delete({ where: { id: workflowId } });
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    return { ok: false, error: `Could not delete workflow: ${msg}` };
+  }
+
+  revalidatePath("/dashboards/workflow-center");
   return { ok: true, workflowId };
 }
 

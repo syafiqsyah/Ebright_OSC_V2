@@ -7,6 +7,7 @@ import {
   loadWorkflowActor,
   canAccessWorkflowCenter,
   canEditWorkflowForDepartment,
+  canDeleteWorkflow,
 } from "@/lib/workflow/permissions";
 import { getWorkflowDetailForActor } from "@/lib/workflow/queries";
 
@@ -47,7 +48,11 @@ export default async function WorkflowDetailPage({ params, searchParams }: PageP
       role={actor.roleType}
       name={session.user.name ?? null}
     >
-      <WorkflowDetailView workflow={workflow} canEdit={canEdit} />
+      <WorkflowDetailView
+        workflow={workflow}
+        canEdit={canEdit}
+        canDelete={canDeleteWorkflow(actor)}
+      />
     </AppShell>
   );
 }

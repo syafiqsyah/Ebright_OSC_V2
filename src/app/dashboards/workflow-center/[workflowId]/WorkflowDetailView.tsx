@@ -11,12 +11,15 @@ import {
   updateWorkflow,
   addWorkflowStep,
   deleteWorkflowStep,
+  deleteWorkflow,
 } from "../actions";
 
 interface Props {
   workflow: WorkflowDetail;
   /** When true, fields are editable + actions are enabled. */
   canEdit: boolean;
+  /** When true (superadmin/admin), the Delete button is shown. */
+  canDelete: boolean;
 }
 
 const STATUS_PILL: Record<string, string> = {
@@ -56,10 +59,11 @@ const TRIGGER_OPTIONS = [
 ];
 const DEFAULT_CATEGORIES = ["Onboarding", "Offboarding", "Other"];
 
-export function WorkflowDetailView({ workflow, canEdit }: Props) {
+export function WorkflowDetailView({ workflow, canEdit, canDelete }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [showDelete, setShowDelete] = useState(false);
 
   // Local edit state — only used when canEdit is true.
   const [editName, setEditName] = useState(workflow.name);
@@ -118,6 +122,20 @@ export function WorkflowDetailView({ workflow, canEdit }: Props) {
     });
   };
 
+  const handleDelete = () => {
+    setError(null);
+    startTransition(async () => {
+      const result = await deleteWorkflow(workflow.id);
+      if (!result.ok) {
+        setError(result.error ?? "Could not delete.");
+        setShowDelete(false);
+      } else {
+        // Success → list page shows the "deleted" banner.
+        router.push("/dashboards/workflow-center?deleted=1");
+      }
+    });
+  };
+
   return (
     <div className="min-h-full bg-slate-50">
       <div className="max-w-5xl mx-auto px-6 pt-4 pb-10">
@@ -141,32 +159,46 @@ export function WorkflowDetailView({ workflow, canEdit }: Props) {
           >
             <ArrowLeft className="w-4 h-4" aria-hidden="true" /> Back to Workflow Center
           </Link>
-          {canEdit && (
+          {(canEdit || canDelete) && (
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleSaveDraft}
-                disabled={pending}
-                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-              >
-                {pending ? "Saving…" : "Save Draft"}
-              </button>
-              <button
-                type="button"
-                onClick={handlePublish}
-                disabled={pending}
-                className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-              >
-                {pending ? "Publishing…" : workflow.status === "active" ? "Re-publish" : "Publish"}
-              </button>
-              {workflow.status !== "archived" && (
+              {canEdit && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleSaveDraft}
+                    disabled={pending}
+                    className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    {pending ? "Saving…" : "Save Draft"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePublish}
+                    disabled={pending}
+                    className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                  >
+                    {pending ? "Publishing…" : workflow.status === "active" ? "Re-publish" : "Publish"}
+                  </button>
+                  {workflow.status !== "archived" && (
+                    <button
+                      type="button"
+                      onClick={handleArchive}
+                      disabled={pending}
+                      className="rounded-md border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                    >
+                      Archive
+                    </button>
+                  )}
+                </>
+              )}
+              {canDelete && (
                 <button
                   type="button"
-                  onClick={handleArchive}
+                  onClick={() => setShowDelete(true)}
                   disabled={pending}
-                  className="rounded-md border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                  className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
                 >
-                  Archive
+                  Delete
                 </button>
               )}
             </div>
@@ -176,6 +208,50 @@ export function WorkflowDetailView({ workflow, canEdit }: Props) {
         {error && (
           <div role="alert" className="mb-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
             {error}
+          </div>
+        )}
+
+        {showDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={() => !pending && setShowDelete(false)}
+              className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm focus:outline-none"
+            />
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="delete-workflow-title"
+              className="relative w-full max-w-md overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
+            >
+              <div className="p-6">
+                <h2 id="delete-workflow-title" className="text-base font-semibold text-slate-900">
+                  Delete workflow?
+                </h2>
+                <p className="mt-2 text-sm text-slate-600">
+                  Are you sure you want to delete this workflow? This action cannot be undone.
+                </p>
+              </div>
+              <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-6 py-4">
+                <button
+                  type="button"
+                  onClick={() => setShowDelete(false)}
+                  disabled={pending}
+                  className="h-9 rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={pending}
+                  className="h-9 rounded-md bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
+                >
+                  {pending ? "Deleting…" : "Delete"}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

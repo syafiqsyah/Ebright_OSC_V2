@@ -91,6 +91,7 @@ export default async function OnboardingDashboardPage({ searchParams }: PageProp
     pendingRequests,
     branches,
     branchByUserId,
+    departmentByUserId,
     activeUsers,
   ] = await Promise.all([
     fetchHires ? getCombinedUpcomingHires(7, 7) : Promise.resolve([]),
@@ -102,6 +103,7 @@ export default async function OnboardingDashboardPage({ searchParams }: PageProp
     fetchOnboardingExtras ? listPendingInductionRequests() : Promise.resolve([]),
     fetchOnboardingExtras ? listBranches() : Promise.resolve([]),
     fetchOnboardingExtras ? fetchBranchByUserId() : Promise.resolve({}),
+    fetchOnboardingExtras ? fetchDepartmentByUserId() : Promise.resolve({}),
     fetchOnboardingExtras ? fetchActiveUsersForReportsTo() : Promise.resolve([]),
   ]);
 
@@ -147,6 +149,7 @@ export default async function OnboardingDashboardPage({ searchParams }: PageProp
         pendingRequests={pendingRequests}
         branches={branches}
         branchByUserId={branchByUserId}
+        departmentByUserId={departmentByUserId}
         activeUsers={activeUsers}
         eligibleEmployees={eligibleEmployees}
       />
@@ -165,6 +168,22 @@ async function fetchBranchByUserId(): Promise<Record<number, string | null>> {
   for (const r of rows) {
     if (!(r.user_id in out)) {
       out[r.user_id] = r.branch?.branch_name ?? null;
+    }
+  }
+  return out;
+}
+
+/** userId → departmentName lookup for the Department column in the candidates table. */
+async function fetchDepartmentByUserId(): Promise<Record<number, string | null>> {
+  const rows = await prisma.employment.findMany({
+    where: { status: { in: ["active", "onboarding"] } },
+    include: { department: { select: { department_name: true } } },
+    orderBy: { start_date: "desc" },
+  });
+  const out: Record<number, string | null> = {};
+  for (const r of rows) {
+    if (!(r.user_id in out)) {
+      out[r.user_id] = r.department?.department_name ?? null;
     }
   }
   return out;

@@ -6,10 +6,8 @@ import { authOptions } from "@/lib/nextauth";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/app/components/AppShell";
 import { canManageInductions } from "@/app/induction/roles";
-import { OnboardingCard } from "@/app/induction/components/OnboardingCard";
-import { OffboardingCard } from "@/app/induction/components/OffboardingCard";
-import { MCCard } from "@/app/induction/components/MCCard";
-import { AnnualLeaveCard } from "@/app/induction/components/AnnualLeaveCard";
+import { LifecycleCard } from "@/app/induction/components/LifecycleCard";
+import { LeaveCard } from "@/app/induction/components/LeaveCard";
 import {
   shouldRunSync,
   syncAllFromEbrightLeads,
@@ -17,9 +15,10 @@ import {
 import {
   getCombinedAnnualLeavesUpcoming,
   getCombinedMcLeavesPastWeek,
-  getCombinedUpcomingExits,
-  getCombinedUpcomingHires,
+  listAllInductionProfiles,
 } from "@/app/induction/queries";
+import { listOffboardingCases } from "@/lib/offboarding/queries";
+import { workflowTemplateLabel } from "@/app/induction/templates";
 
 async function maybeAutoSync(): Promise<void> {
   try {
@@ -30,6 +29,14 @@ async function maybeAutoSync(): Promise<void> {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[induction] auto-sync skipped:", msg);
   }
+}
+
+/** Whole days from UTC-today until the given YYYY-MM-DD date (negative if past). */
+function daysUntilUtc(dateStr: string): number {
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const target = new Date(`${dateStr}T00:00:00Z`);
+  return Math.ceil((target.getTime() - today.getTime()) / 86400000);
 }
 
 export const dynamic = "force-dynamic";
@@ -51,30 +58,42 @@ export default async function HrDashboardPage() {
 
   await maybeAutoSync();
 
-  const [hires, exits, mcLeaves, annualLeaves] = await Promise.all([
-    // -1 week → +6 months window for onboarding
-    getCombinedUpcomingHires(180, 7),
-    // -1 week → +2 months window for offboarding (HR may still need to wrap
-    // up offboarding induction for employees in their final week / just-left).
-    getCombinedUpcomingExits(60, 7),
+  const [allProfiles, offboardingCases, mcLeaves, annualLeaves] = await Promise.all([
+    listAllInductionProfiles(),
+    listOffboardingCases(),
     getCombinedMcLeavesPastWeek(),
     getCombinedAnnualLeavesUpcoming(),
   ]);
 
-  const onboardingPreview = hires.slice(0, 8).map((h) => ({
-    key: h.key,
-    title: h.fullName,
-    subtitle: [h.position, h.departmentName].filter(Boolean).join(" · ") || null,
-    meta: `Starts ${h.startDate} · in ${h.daysUntilStart}d`,
-    highlight: h.isWithin7Days,
-  }));
+  // #5: Onboarding card now reflects the SAME pool as the Onboarding Page —
+  // onboarding induction profiles (excluding offboarding + role-assigned),
+  // not the upcoming-hires date-window forecast.
+  const onboardingProfiles = allProfiles.filter(
+    (p) => p.inductionType !== "Offboarding" && p.status !== "Assigned",
+  );
 
-  const offboardingPreview = exits.slice(0, 8).map((e) => ({
-    key: e.key,
-    title: e.fullName,
-    subtitle: [e.position, e.departmentName].filter(Boolean).join(" · ") || null,
-    meta: `Leaves ${e.endDate} · in ${e.daysUntilEnd}d`,
-    highlight: e.isWithin7Days,
+  const onboardingPreview = onboardingProfiles.slice(0, 8).map((p) => {
+    const daysUntilStart = daysUntilUtc(p.startDate);
+    return {
+      key: String(p.id),
+      title: p.employeeName,
+      subtitle: workflowTemplateLabel(p.workflowTemplate),
+      meta: `${p.status} · ${p.completedSteps}/${p.totalSteps} steps`,
+      highlight: daysUntilStart >= 0 && daysUntilStart <= 7,
+    };
+  });
+
+  // #5: Offboarding card now reflects the actual offboarding pipeline —
+  // offboarding_case records from the Offboarding module.
+  const offboardingPreview = offboardingCases.slice(0, 8).map((c) => ({
+    key: String(c.id),
+    title: c.employeeName,
+    subtitle: [c.departmentName, c.branchCode].filter(Boolean).join(" · ") || null,
+    meta: c.lastWorkingDay ? `LWD ${c.lastWorkingDay} · ${c.status}` : c.status,
+    highlight:
+      c.daysUntilLastDay !== null &&
+      c.daysUntilLastDay >= 0 &&
+      c.daysUntilLastDay <= 7,
   }));
 
   const userEmail = session.user.email;
@@ -102,18 +121,20 @@ export default async function HrDashboardPage() {
             </header>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <OnboardingCard
-                total={hires.length}
-                windowLabel="-1 week → +6 months"
+              <LifecycleCard
+                variant="onboarding"
+                total={onboardingProfiles.length}
+                windowLabel="Active induction pipeline"
                 previewItems={onboardingPreview}
               />
-              <OffboardingCard
-                total={exits.length}
-                windowLabel="-1 week → +2 months"
+              <LifecycleCard
+                variant="offboarding"
+                total={offboardingCases.length}
+                windowLabel="Active offboarding cases"
                 previewItems={offboardingPreview}
               />
-              <MCCard rows={mcLeaves} />
-              <AnnualLeaveCard rows={annualLeaves} />
+              <LeaveCard variant="mc" rows={mcLeaves} />
+              <LeaveCard variant="annual-leave" rows={annualLeaves} />
             </div>
           </div>
         </div>
