@@ -23,7 +23,7 @@ import { deleteEmployee } from "@/app/dashboard-employee-management/actions";
 import {
   EmployeeDashboardOverviewSection,
   type OverviewStats,
-  type CandidatePanelRow,
+  type EmployeeBoxKey,
 } from "@/app/components/EmployeeDashboardOverviewSection";
 
 const ROLE_OPTIONS = ["FT CEO", "FT HOD", "FT EXEC", "BM", "FT COACH", "PT COACH", "INTERN"] as const;
@@ -110,22 +110,33 @@ export default function EmployeeListView({
   branches,
   departments,
   overviewStats,
-  candidates,
 }: {
   employees: EmployeeRow[];
   branches: BranchOpt[];
   departments: DepartmentOpt[];
-  /** Optional — when provided, renders the 5-card overview + onboarding panel
-   *  above the existing employees table. */
+  /** Optional — when provided, renders the org overview cards above the
+   *  existing employees table. The cards act as quick-filters for the list. */
   overviewStats?: OverviewStats;
-  candidates?: CandidatePanelRow[];
 }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [orgUnit, setOrgUnit] = useState("");
   const [role, setRole] = useState("");
   const [status, setStatus] = useState("");
+  const [activeBox, setActiveBox] = useState<EmployeeBoxKey | null>(null);
   const [page, setPage] = useState(1);
+
+  // Clicking an overview card drives the list on its own, so we clear the
+  // manual dropdown/search filters and let the box be the sole active filter
+  // (Total simply shows everything). Clicking the active card again clears it.
+  const handleBoxClick = (key: EmployeeBoxKey) => {
+    setActiveBox((cur) => (cur === key ? null : key));
+    setSearch("");
+    setOrgUnit("");
+    setRole("");
+    setStatus("");
+    setPage(1);
+  };
   const [deleteTarget, setDeleteTarget] = useState<EmployeeRow | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, startDelete] = useTransition();
@@ -178,6 +189,14 @@ export default function EmployeeListView({
         const code = orgUnit.slice("dept:".length);
         if (e.departmentCode !== code) return false;
       }
+      // Overview-card quick filters (Total = no constraint):
+      if (activeBox === "branches") {
+        if (!e.branchCode || e.branchCode === "HQ") return false;
+      } else if (activeBox === "departments") {
+        if (e.branchCode !== "HQ") return false;
+      } else if (activeBox === "onboarding") {
+        if (e.status !== "onboarding") return false;
+      }
       if (!q) return true;
       return (
         e.fullName.toLowerCase().includes(q) ||
@@ -186,19 +205,22 @@ export default function EmployeeListView({
         e.email.toLowerCase().includes(q)
       );
     });
-  }, [employees, search, orgUnit, role, status]);
+  }, [employees, search, orgUnit, role, status, activeBox]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const pageStart = (currentPage - 1) * PAGE_SIZE;
   const pageRows = filtered.slice(pageStart, pageStart + PAGE_SIZE);
 
-  const hasActiveFilters = Boolean(search || orgUnit || role || status);
+  // "total" means "show all", so it doesn't count as an active filter.
+  const boxFiltering = activeBox !== null && activeBox !== "total";
+  const hasActiveFilters = Boolean(search || orgUnit || role || status || boxFiltering);
   const clearFilters = () => {
     setSearch("");
     setOrgUnit("");
     setRole("");
     setStatus("");
+    setActiveBox(null);
     setPage(1);
   };
 
@@ -376,10 +398,11 @@ export default function EmployeeListView({
           </div>
         </div>
 
-        {overviewStats && candidates && (
+        {overviewStats && (
           <EmployeeDashboardOverviewSection
             stats={overviewStats}
-            candidates={candidates}
+            activeBox={activeBox}
+            onBoxClick={handleBoxClick}
           />
         )}
 
@@ -390,19 +413,19 @@ export default function EmployeeListView({
               <input
                 type="search"
                 value={search}
-                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                onChange={(e) => { setSearch(e.target.value); setActiveBox(null); setPage(1); }}
                 placeholder="Search by name, nickname, ID, or email"
                 className="w-full h-10 pl-9 pr-3 rounded-lg border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
 
-            <OrgUnitSelect value={orgUnit} onChange={(v) => { setOrgUnit(v); setPage(1); }} branches={branches} departments={departments} />
+            <OrgUnitSelect value={orgUnit} onChange={(v) => { setOrgUnit(v); setActiveBox(null); setPage(1); }} branches={branches} departments={departments} />
 
             <FilterSelect
               ariaLabel="Role"
               placeholder="All Roles"
               value={role}
-              onChange={(v) => { setRole(v); setPage(1); }}
+              onChange={(v) => { setRole(v); setActiveBox(null); setPage(1); }}
               options={ROLE_OPTIONS.map((r) => ({ value: r, label: r }))}
             />
 
@@ -410,7 +433,7 @@ export default function EmployeeListView({
               ariaLabel="Status"
               placeholder="All Status"
               value={status}
-              onChange={(v) => { setStatus(v); setPage(1); }}
+              onChange={(v) => { setStatus(v); setActiveBox(null); setPage(1); }}
               options={STATUS_OPTIONS}
             />
           </div>
