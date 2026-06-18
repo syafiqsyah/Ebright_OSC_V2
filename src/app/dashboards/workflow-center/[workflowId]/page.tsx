@@ -1,6 +1,5 @@
+﻿import { auth } from "@/auth";
 import { notFound, redirect } from "next/navigation";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/nextauth";
 import AppShell from "@/app/components/AppShell";
 import { WorkflowDetailView } from "./WorkflowDetailView";
 import {
@@ -23,7 +22,7 @@ interface PageProps {
  * rights on this workflow's department.
  */
 export default async function WorkflowDetailPage({ params, searchParams }: PageProps) {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) redirect("/login");
 
   const actor = await loadWorkflowActor(session.user.email);

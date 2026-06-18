@@ -1,6 +1,5 @@
+﻿import { auth } from "@/auth";
 import { notFound, redirect } from "next/navigation";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/nextauth";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/app/components/AppShell";
 import { OffboardingCaseDetailView } from "./OffboardingCaseDetailView";
@@ -19,7 +18,7 @@ interface PageProps {
 }
 
 export default async function OffboardingCaseDetailPage({ params }: PageProps) {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) redirect("/login");
 
   const actor = await prisma.users.findUnique({

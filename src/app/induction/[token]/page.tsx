@@ -1,7 +1,6 @@
+﻿import { auth } from "@/auth";
 import Link from "next/link";
 import { AlertCircle } from "lucide-react";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/nextauth";
 import { prisma } from "@/lib/prisma";
 import PersonalInductionView from "@/app/induction/components/PersonalInductionView";
 import { canManageInductions } from "@/app/induction/roles";
@@ -60,7 +59,7 @@ export default async function PersonalInductionPage({ params }: PageProps) {
     );
   }
 
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   let canMarkComplete = false;
   if (session?.user?.email) {
     const actor = await prisma.users.findUnique({

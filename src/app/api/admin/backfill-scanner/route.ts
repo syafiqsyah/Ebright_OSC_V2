@@ -1,6 +1,5 @@
+import { auth } from "@/auth";
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/nextauth";
 import { prisma } from "@/lib/prisma";
 import { backfillRange } from "@/lib/scanner-sync";
 import { mytDayUtcBounds } from "@/lib/myt";
@@ -20,7 +19,7 @@ function parseMytDate(s: string): Date | null {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }

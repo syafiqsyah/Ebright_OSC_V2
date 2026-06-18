@@ -1,9 +1,8 @@
+import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth/next";
 import Link from "next/link";
 import { Home, ChevronRight } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
-import { authOptions } from "@/lib/nextauth";
 import AppShell from "./AppShell";
 
 interface Crumb {
@@ -31,7 +30,7 @@ export default async function ComingSoonPage({
   Icon,
   accent = "bg-slate-600",
 }: ComingSoonPageProps) {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) redirect("/login");
 
   const userEmail = session.user.email;

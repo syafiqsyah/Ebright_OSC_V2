@@ -1,6 +1,5 @@
+import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/nextauth";
 import AppShell from "@/app/components/AppShell";
 import EmployeeForm from "@/app/components/EmployeeForm";
 import { listBranches, listDepartments } from "@/lib/employeeQueries";
@@ -8,7 +7,7 @@ import { listInductionEligibleEmployees } from "@/app/induction/queries";
 import { createEmployee } from "@/app/dashboard-employee-management/actions";
 
 export default async function AddEmployeePage() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session) redirect("/login");
 
   const [branches, departments, buddyOptions] = await Promise.all([

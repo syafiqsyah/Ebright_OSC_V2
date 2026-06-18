@@ -1,13 +1,12 @@
-import type { NextAuthOptions } from "next-auth";
-import CredentialsProvider from "next-auth/providers/credentials";
+import NextAuth from "next-auth";
+import Credentials from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { titleCaseName } from "@/lib/text";
 
-export const authOptions: NextAuthOptions = {
+export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
-    CredentialsProvider({
-      name: "Credentials",
+    Credentials({
       credentials: {
         email:    { label: "Username/Email", type: "text" },
         password: { label: "Password",       type: "password" },
@@ -16,7 +15,7 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email || !credentials?.password) return null;
 
         const user = await prisma.users.findUnique({
-          where: { email: credentials.email },
+          where: { email: credentials.email as string },
           include: {
             role: true,
             user_profile: true,
@@ -31,7 +30,10 @@ export const authOptions: NextAuthOptions = {
         if (user.status !== "active") return null;
         if (!user.password) return null;
 
-        const valid = await bcrypt.compare(credentials.password, user.password);
+        const valid = await bcrypt.compare(
+          credentials.password as string,
+          user.password,
+        );
         if (!valid) return null;
 
         await prisma.users.update({
@@ -53,7 +55,7 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    jwt({ token, user }) {
       if (user) {
         token.userId     = (user as { id?: string }).id;
         token.role       = (user as { role?: string }).role;
@@ -62,7 +64,7 @@ export const authOptions: NextAuthOptions = {
       }
       return token;
     },
-    async session({ session, token }) {
+    session({ session, token }) {
       if (session.user) {
         (session.user as { id?: unknown }).id           = token.userId;
         (session.user as { role?: unknown }).role       = token.role;
@@ -73,21 +75,6 @@ export const authOptions: NextAuthOptions = {
     },
   },
   events: {
-    /**
-     * First-login detection for onboarding candidates.
-     *
-     * When a candidate logs in with the credentials HR generated for
-     * them, this hook fires AFTER successful authentication. If they
-     * have an induction_profile with status="Sent" and no existing
-     * pending/accepted induction_request, we create the pending
-     * request — which causes:
-     *   - the count badge on Pending Induction Requests to tick up
-     *   - the NotificationBell to alert HR/Admin
-     *
-     * Re-running this on subsequent logins is a no-op thanks to the
-     * uq_induction_request_user_active unique constraint
-     * (one active row per user where status <> 'completed').
-     */
     async signIn(message) {
       const userIdStr = (message.user as { id?: string }).id;
       const userId = userIdStr ? Number.parseInt(userIdStr, 10) : NaN;
@@ -109,22 +96,17 @@ export const authOptions: NextAuthOptions = {
         await prisma.induction_request.create({
           data: {
             user_id: userId,
-            triggered_by_id: userId, // self-triggered by first login
+            triggered_by_id: userId,
             status: "pending",
           },
         });
       } catch (e) {
-        // Don't block login if this fails — just log and move on.
         const msg = e instanceof Error ? e.message : String(e);
-        console.error("[nextauth] induction-request on first login failed:", msg);
+        console.error("[auth] induction-request on first login failed:", msg);
       }
     },
   },
-  // signIn: where unauthenticated users land. error: where NextAuth redirects
-  // on internal auth errors instead of the default /api/auth/error page, which
-  // can 404 if the catch-all handler is mid-restart or its internal page
-  // renderer throws.
   pages:   { signIn: "/login", error: "/login" },
   session: { strategy: "jwt" },
-  secret:  process.env.NEXTAUTH_SECRET,
-};
+  secret:  process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET,
+});

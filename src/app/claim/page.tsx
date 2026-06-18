@@ -1,6 +1,5 @@
+import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/nextauth";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/app/components/AppShell";
 import ClaimsView, {
@@ -13,7 +12,7 @@ import { canReviewClaims } from "@/app/claim/roles";
 export const dynamic = "force-dynamic";
 
 export default async function ClaimsPage() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) redirect("/login");
 
   const me = await prisma.users.findUnique({

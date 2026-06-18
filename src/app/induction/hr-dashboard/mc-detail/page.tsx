@@ -1,8 +1,7 @@
+import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getServerSession } from "next-auth/next";
 import { ArrowLeft } from "lucide-react";
-import { authOptions } from "@/lib/nextauth";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/app/components/AppShell";
 import { canManageInductions } from "@/app/induction/roles";
@@ -15,7 +14,7 @@ export const metadata = {
 };
 
 export default async function McDetailPage() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) redirect("/login");
 
   const actor = await prisma.users.findUnique({

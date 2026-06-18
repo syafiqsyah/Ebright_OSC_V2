@@ -1,8 +1,7 @@
 "use server";
+import { auth } from "@/auth";
 
 import { revalidatePath } from "next/cache";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/nextauth";
 import { prisma } from "@/lib/prisma";
 import { canReviewClaims } from "@/app/claim/roles";
 import { uploadToDrive } from "@/lib/drive";
@@ -66,7 +65,7 @@ export async function submitClaim(
   _prev: SubmitClaimResult | null,
   formData: FormData,
 ): Promise<SubmitClaimResult> {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) return { ok: false, error: "Not authenticated." };
 
   const user = await prisma.users.findUnique({
@@ -170,7 +169,7 @@ export async function reviewClaim(
   _prev: ReviewClaimResult | null,
   formData: FormData,
 ): Promise<ReviewClaimResult> {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) return { ok: false, error: "Not authenticated." };
 
   const reviewer = await prisma.users.findUnique({

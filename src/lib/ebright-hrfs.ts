@@ -7,29 +7,18 @@ const globalForPool = globalThis as unknown as {
 };
 
 function configSignature(): string {
-  return [
-    process.env.EBRIGHT_HRFS_HOST ?? "",
-    process.env.EBRIGHT_HRFS_PORT ?? "",
-    process.env.EBRIGHT_HRFS_USER ?? "",
-    process.env.EBRIGHT_HRFS_PASSWORD ?? "",
-    process.env.EBRIGHT_HRFS_DATABASE ?? "",
-  ].join("|");
+  return process.env.HRFS_DATABASE_URL ?? "";
 }
 
 function makePool(): Pool {
-  const host = process.env.EBRIGHT_HRFS_HOST;
-  const database = process.env.EBRIGHT_HRFS_DATABASE;
-  if (!host || !database) {
+  const connectionString = process.env.HRFS_DATABASE_URL;
+  if (!connectionString) {
     throw new Error(
-      `EBRIGHT_HRFS_* env vars missing (host=${host ?? "undefined"}, database=${database ?? "undefined"}). Restart dev server after editing .env.`,
+      "HRFS_DATABASE_URL env var missing. Restart dev server after editing .env.",
     );
   }
   return new Pool({
-    host,
-    port: parseInt(process.env.EBRIGHT_HRFS_PORT || "5433", 10),
-    user: process.env.EBRIGHT_HRFS_USER,
-    password: process.env.EBRIGHT_HRFS_PASSWORD,
-    database,
+    connectionString,
     max: 5,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,

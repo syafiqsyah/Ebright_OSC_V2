@@ -1,9 +1,8 @@
 "use server";
+import { auth } from "@/auth";
 
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/nextauth";
 import { prisma } from "@/lib/prisma";
 import { getRequestBaseUrl } from "@/lib/baseUrl";
 
@@ -108,7 +107,7 @@ async function loadActorAndAuthorize(): Promise<
   | { ok: true; actor: { user_id: number; role_type: string | null } }
   | { ok: false; error: string }
 > {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) return { ok: false, error: "Not authenticated." };
 
   const actor = await prisma.users.findUnique({
@@ -741,7 +740,7 @@ export async function assignCandidateRole(
   // Narrow further: only admin/superadmin can assign roles. canManageInductions
   // (which loadActorAndAuthorize uses) includes "hr" and "od" too, but the
   // spec says Assign Role is admin-only on this page.
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) return { ok: false, error: "Not signed in." };
   const actorUser = await prisma.users.findUnique({
     where: { email: session.user.email },
@@ -877,7 +876,7 @@ export async function markStepCompleteByToken(
     return { ok: false, error: "This induction link has expired." };
   }
 
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) {
     return { ok: false, error: "Please sign in to mark steps complete." };
   }
@@ -1023,7 +1022,7 @@ export async function submitStepEvidenceByToken(
     return { ok: false, error: "This induction link has expired." };
   }
 
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) {
     return { ok: false, error: "Please sign in to submit evidence." };
   }
@@ -1147,7 +1146,7 @@ export async function submitSurveyResponse(
   try {
     // Authz: only the induction's own candidate or an induction manager may
     // submit a survey response (action was previously unauthenticated).
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session?.user?.email) return { ok: false, error: "Not authenticated." };
     const [actor, profile] = await Promise.all([
       prisma.users.findUnique({
@@ -1243,7 +1242,7 @@ export async function fetchInductionForManager(
     return { ok: false, error: "Invalid user id." };
   }
 
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) {
     return { ok: false, error: "Not authenticated." };
   }

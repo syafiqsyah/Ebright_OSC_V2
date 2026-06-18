@@ -1,8 +1,7 @@
+import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth/next";
 import Link from "next/link";
 import { Home, ChevronRight, Ticket } from "lucide-react";
-import { authOptions } from "@/lib/nextauth";
 import AppShell from "@/app/components/AppShell";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +11,7 @@ export const metadata = {
 };
 
 export default async function TicketPage() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) redirect("/login");
 
   const userEmail = session.user.email;

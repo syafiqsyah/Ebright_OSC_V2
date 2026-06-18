@@ -1,6 +1,5 @@
+import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/nextauth";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/app/components/AppShell";
 import StaffDirectory, {
@@ -12,7 +11,7 @@ import StaffDirectory, {
 export const dynamic = "force-dynamic";
 
 export default async function StaffDirectoryPage() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session) redirect("/login");
 
   // Auto-inactivate employments whose end_date has already passed.

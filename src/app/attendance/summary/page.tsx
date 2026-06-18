@@ -1,7 +1,6 @@
+import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/nextauth";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/app/components/AppShell";
 import AttendanceSummaryView, {
@@ -46,7 +45,7 @@ function formatMytIsoDate(d: Date): string {
 }
 
 export default async function AttendanceSummaryPage({ searchParams }: PageProps) {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) redirect("/login");
 
   const me = await prisma.users.findUnique({

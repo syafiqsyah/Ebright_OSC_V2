@@ -1,18 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import {
-  Home,
-  ChevronRight,
   Search,
   MapPin,
   CalendarDays,
-  Users,
-  CheckCircle2,
   Plus,
   Key,
 } from "lucide-react";
+import { useBreadcrumb } from "@/app/components/BreadcrumbContext";
 
 type EventStatus = "draft" | "open" | "ongoing" | "closed" | "completed";
 
@@ -27,13 +23,15 @@ interface FAEvent {
   sessions: number;
   invited: number;
   confirmed: number;
+  attended?: number;
   month: string;
   day: number;
   year: number;
+  archiveDate?: string;
   multiGrade?: boolean;
 }
 
-const mockEvents: FAEvent[] = [
+const mockActiveEvents: FAEvent[] = [
   {
     id: "1",
     name: "20-21 June Weekly Showcase",
@@ -52,49 +50,122 @@ const mockEvents: FAEvent[] = [
   },
   {
     id: "2",
-    name: "July Open Day — Subang",
-    startDate: "5 Jul 2026",
-    endDate: "5 Jul 2026",
-    days: 1,
-    venue: "Subang Parade",
-    status: "open",
-    sessions: 8,
-    invited: 120,
-    confirmed: 47,
+    name: "18-19 July Weekly Showcase",
+    startDate: "18 Jul 2026",
+    endDate: "19 Jul 2026",
+    days: 2,
+    venue: "Pavilion Damansara Heights",
+    status: "ongoing",
+    sessions: 14,
+    invited: 215,
+    confirmed: 180,
     month: "JUL",
-    day: 5,
+    day: 18,
     year: 2026,
     multiGrade: true,
   },
   {
     id: "3",
-    name: "Mid-Year Parent Briefing",
-    startDate: "12 Jul 2026",
-    endDate: "12 Jul 2026",
-    days: 1,
-    venue: "HQ Boardroom",
+    name: "25-26 July Weekly Showcase",
+    startDate: "25 Jul 2026",
+    endDate: "26 Jul 2026",
+    days: 2,
+    venue: "NU Empire",
     status: "draft",
-    sessions: 3,
+    sessions: 14,
     invited: 0,
     confirmed: 0,
     month: "JUL",
-    day: 12,
+    day: 25,
     year: 2026,
   },
+];
+
+const mockArchiveEvents: FAEvent[] = [
   {
-    id: "4",
-    name: "August Intake Showcase",
-    startDate: "2 Aug 2026",
-    endDate: "3 Aug 2026",
+    id: "a1",
+    name: "16-17 May Weekly Showcase",
+    startDate: "16 May 2026",
+    endDate: "17 May 2026",
     days: 2,
-    venue: "IOI City Mall",
-    status: "draft",
+    venue: "Mid Valley",
+    status: "completed",
+    sessions: 14,
+    invited: 249,
+    confirmed: 191,
+    attended: 190,
+    month: "MAY",
+    day: 16,
+    year: 2026,
+    archiveDate: "Jun 10, 2026",
+  },
+  {
+    id: "a2",
+    name: "30-31 May Weekly Showcase",
+    startDate: "30 May 2026",
+    endDate: "31 May 2026",
+    days: 2,
+    venue: "Sunway Pyramid",
+    status: "completed",
+    sessions: 14,
+    invited: 190,
+    confirmed: 146,
+    attended: 146,
+    month: "MAY",
+    day: 30,
+    year: 2026,
+    archiveDate: "Jun 4, 2026",
+  },
+  {
+    id: "a3",
+    name: "FA MAY",
+    startDate: "16 May 2026",
+    endDate: "16 May 2026",
+    days: 1,
+    venue: "HQ",
+    status: "completed",
     sessions: 10,
     invited: 0,
     confirmed: 0,
-    month: "AUG",
-    day: 2,
+    attended: 0,
+    month: "MAY",
+    day: 16,
     year: 2026,
+    archiveDate: "May 16, 2026",
+  },
+  {
+    id: "a4",
+    name: "test",
+    startDate: "8 May 2026",
+    endDate: "8 May 2026",
+    days: 1,
+    venue: "HQ",
+    status: "completed",
+    sessions: 10,
+    invited: 2,
+    confirmed: 0,
+    attended: 0,
+    month: "MAY",
+    day: 8,
+    year: 2026,
+    archiveDate: "May 8, 2026",
+  },
+  {
+    id: "a5",
+    name: "Historical FA (pre-portal records)",
+    startDate: "1 Jan 2025",
+    endDate: "1 Jan 2025",
+    days: 1,
+    venue: "—",
+    status: "completed",
+    sessions: 1,
+    invited: 710,
+    confirmed: 710,
+    attended: 710,
+    month: "JAN",
+    day: 1,
+    year: 2025,
+    archiveDate: "Jan 1, 2025",
   },
 ];
 
@@ -127,8 +198,7 @@ function StatusBadge({ status }: { status: EventStatus }) {
 
 function EventCard({ event, featured = false }: { event: FAEvent; featured?: boolean }) {
   return (
-    <div className={`bg-white border border-slate-200 rounded-2xl p-5 flex gap-5 items-start hover:border-slate-300 hover:shadow-sm transition-all cursor-pointer ${featured ? "shadow-sm" : ""}`}>
-      {/* Date block */}
+    <div className={`bg-white border border-slate-200 rounded-2xl p-5 flex gap-5 items-center hover:border-slate-300 hover:shadow-sm transition-all cursor-pointer ${featured ? "shadow-sm" : ""}`}>
       <div className="flex flex-col items-center justify-center min-w-[56px] text-center">
         <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider leading-none">
           {event.month}
@@ -139,10 +209,8 @@ function EventCard({ event, featured = false }: { event: FAEvent; featured?: boo
         <span className="text-xs text-slate-400 mt-0.5">{event.year}</span>
       </div>
 
-      {/* Divider */}
-      <div className="self-stretch w-px bg-slate-200 shrink-0" />
+      <div className="w-px h-full self-stretch bg-slate-200 shrink-0" />
 
-      {/* Main content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
@@ -172,7 +240,6 @@ function EventCard({ event, featured = false }: { event: FAEvent; featured?: boo
         </div>
       </div>
 
-      {/* Stats */}
       <div className="hidden sm:flex items-center gap-6 shrink-0">
         <Stat label="Sessions" value={event.sessions} />
         <div className="w-px h-8 bg-slate-200" />
@@ -195,42 +262,67 @@ function Stat({ label, value, highlight }: { label: string; value: number; highl
   );
 }
 
+function ArchiveRow({ event }: { event: FAEvent }) {
+  return (
+    <div className="flex items-center gap-4 px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer group rounded-xl">
+      <span className="text-sm text-slate-400 w-28 shrink-0">{event.archiveDate}</span>
+
+      <span className="flex-1 text-sm font-medium text-slate-700 group-hover:text-slate-900 truncate">
+        {event.name}
+      </span>
+
+      <div className="hidden sm:flex items-center gap-5 shrink-0">
+        <StatusBadge status={event.status} />
+        <span className="text-sm text-slate-500 w-20 text-right">{event.sessions} sessions</span>
+        <span className="text-sm text-slate-500 w-20 text-right">{event.invited} invited</span>
+        <span className={`text-sm font-medium w-24 text-right ${event.confirmed > 0 ? "text-green-600" : "text-slate-400"}`}>
+          {event.confirmed} confirmed
+        </span>
+        <span className={`text-sm font-medium w-22 text-right ${(event.attended ?? 0) > 0 ? "text-violet-600" : "text-slate-400"}`}>
+          {event.attended ?? 0} attended
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export default function FAEventsClient() {
+  useBreadcrumb([
+    { label: "Home", href: "/home" },
+    { label: "FA System", href: "/dashboards/fa" },
+    { label: "Events" },
+  ]);
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<EventStatus | "all">("all");
 
-  const filtered = mockEvents.filter((e) => {
-    const matchSearch =
-      !search ||
-      e.name.toLowerCase().includes(search.toLowerCase()) ||
-      e.venue.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === "all" || e.status === statusFilter;
-    return matchSearch && matchStatus;
+  const q = search.toLowerCase();
+
+  const matchesSearch = (e: FAEvent) =>
+    !search || e.name.toLowerCase().includes(q) || e.venue.toLowerCase().includes(q);
+
+  const filteredActive = mockActiveEvents.filter((e) => {
+    if (!matchesSearch(e)) return false;
+    if (statusFilter === "completed") return false;
+    if (statusFilter === "all") return true;
+    return e.status === statusFilter;
   });
 
-  const multiGradeCount = mockEvents.filter((e) => e.multiGrade).length;
-  const [nextEvent, ...upcoming] = filtered;
+  // Archive always shows completed; if filter is set to a non-completed status, hide archive
+  const showArchive = statusFilter === "all" || statusFilter === "completed";
+  const filteredArchive = showArchive
+    ? mockArchiveEvents.filter(matchesSearch)
+    : [];
+
+  const multiGradeCount = mockActiveEvents.filter((e) => e.multiGrade).length;
+  const [nextEvent, ...upcoming] = filteredActive;
 
   return (
     <div className="min-h-full bg-slate-50">
-      <div className="max-w-7xl mx-auto px-6 pt-4 pb-10">
-
-        {/* Breadcrumb */}
-        <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm text-slate-500 mb-6">
-          <Link href="/home" className="flex items-center gap-1 hover:text-slate-900 transition-colors rounded">
-            <Home className="w-4 h-4" aria-hidden="true" />
-            <span>Home</span>
-          </Link>
-          <ChevronRight className="w-4 h-4 text-slate-400" aria-hidden="true" />
-          <Link href="/dashboards/fa" className="hover:text-slate-900 transition-colors rounded">
-            FA System
-          </Link>
-          <ChevronRight className="w-4 h-4 text-slate-400" aria-hidden="true" />
-          <span className="text-slate-900 font-medium">Events</span>
-        </nav>
+      <div className="max-w-7xl mx-auto px-6 pt-4 pb-0">
 
         {/* Page header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between">
           <h1 className="text-3xl md:text-4xl font-semibold text-slate-900 tracking-tight">FA Events</h1>
           <button
             type="button"
@@ -240,9 +332,11 @@ export default function FAEventsClient() {
             New event
           </button>
         </div>
+      </div>
 
-        {/* Search + filters */}
-        <div className="flex items-center justify-between gap-3 mb-8">
+      {/* Sticky search + filters bar */}
+      <div className="sticky top-0 z-20 bg-slate-50/95 backdrop-blur-sm border-b border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
@@ -286,37 +380,65 @@ export default function FAEventsClient() {
             </button>
           )}
         </div>
+      </div>
 
-        {/* Events list */}
-        {filtered.length === 0 ? (
-          <div className="bg-white border border-slate-200 rounded-2xl p-12 flex flex-col items-center text-center">
-            <CalendarDays className="w-10 h-10 text-slate-300 mb-3" />
-            <p className="text-sm font-medium text-slate-500">No events match your filters.</p>
-          </div>
-        ) : (
+      <div className="max-w-7xl mx-auto px-6 pt-6 pb-10">
+        {/* Active events list */}
+        {statusFilter !== "completed" && (
           <>
-            {nextEvent && (
+            {filteredActive.length === 0 && statusFilter !== "all" ? (
+              <div className="bg-white border border-slate-200 rounded-2xl p-12 flex flex-col items-center text-center">
+                <CalendarDays className="w-10 h-10 text-slate-300 mb-3" />
+                <p className="text-sm font-medium text-slate-500">No events match your filters.</p>
+              </div>
+            ) : (
               <>
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-3">
-                  Next Event
-                </p>
-                <EventCard event={nextEvent} featured />
-              </>
-            )}
+                {nextEvent && (
+                  <>
+                    <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-3">
+                      Next Event
+                    </p>
+                    <EventCard event={nextEvent} featured />
+                  </>
+                )}
 
-            {upcoming.length > 0 && (
-              <>
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mt-8 mb-3">
-                  Also Upcoming
-                </p>
-                <div className="space-y-3">
-                  {upcoming.map((e) => (
-                    <EventCard key={e.id} event={e} />
-                  ))}
-                </div>
+                {upcoming.length > 0 && (
+                  <>
+                    <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mt-8 mb-3">
+                      Also Upcoming
+                    </p>
+                    <div className="space-y-3">
+                      {upcoming.map((e) => (
+                        <EventCard key={e.id} event={e} />
+                      ))}
+                    </div>
+                  </>
+                )}
               </>
             )}
           </>
+        )}
+
+        {/* Archive section */}
+        {filteredArchive.length > 0 && (
+          <div className={statusFilter !== "completed" ? "mt-12" : ""}>
+            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-3">
+              Archive
+            </p>
+            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden divide-y divide-slate-100">
+              {filteredArchive.map((e) => (
+                <ArchiveRow key={e.id} event={e} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Empty state when completed filter + no archive results */}
+        {statusFilter === "completed" && filteredArchive.length === 0 && (
+          <div className="bg-white border border-slate-200 rounded-2xl p-12 flex flex-col items-center text-center">
+            <CalendarDays className="w-10 h-10 text-slate-300 mb-3" />
+            <p className="text-sm font-medium text-slate-500">No completed events match your search.</p>
+          </div>
         )}
       </div>
     </div>

@@ -1,8 +1,7 @@
 "use server";
+import { auth } from "@/auth";
 
 import { revalidatePath } from "next/cache";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/nextauth";
 import { prisma } from "@/lib/prisma";
 import { getApproverDepartmentId } from "./queries";
 
@@ -17,7 +16,7 @@ async function authorize(): Promise<
   | { ok: true; userId: number; role: string; position: string; deptId: number | null }
   | { ok: false; error: string }
 > {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) return { ok: false, error: "Not authenticated." };
 
   const role = (session.user as { role?: string }).role ?? "";

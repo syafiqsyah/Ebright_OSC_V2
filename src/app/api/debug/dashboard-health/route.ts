@@ -1,6 +1,5 @@
+import { auth } from "@/auth";
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/nextauth";
 import { prisma } from "@/lib/prisma";
 import {
   getCombinedUpcomingExits,
@@ -62,7 +61,7 @@ async function check(name: string, fn: () => Promise<unknown>): Promise<CheckRes
 }
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) {
     return NextResponse.json({ ok: false, error: "Not signed in" }, { status: 401 });
   }

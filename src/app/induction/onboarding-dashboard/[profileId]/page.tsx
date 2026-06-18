@@ -1,6 +1,5 @@
+﻿import { auth } from "@/auth";
 import { notFound, redirect } from "next/navigation";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/nextauth";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/app/components/AppShell";
 import { canManageInductions } from "@/app/induction/roles";
@@ -41,7 +40,7 @@ interface PageProps {
  *   - Real department workflow (Phase E.2 needs workflow_assignment table)
  */
 export default async function CandidateDetailPage({ params }: PageProps) {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) redirect("/login");
 
   const actor = await prisma.users.findUnique({

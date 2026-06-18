@@ -1,8 +1,7 @@
 "use server";
+import { auth } from "@/auth";
 
 import { revalidatePath } from "next/cache";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/nextauth";
 import { prisma } from "@/lib/prisma";
 
 export interface SaveResult {
@@ -45,7 +44,7 @@ export async function saveWorkingHours(
   employmentId: number,
   schedule: unknown,
 ): Promise<SaveResult> {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) return { ok: false, error: "Not authenticated." };
 
   const role = (session.user as { role?: string }).role ?? "";

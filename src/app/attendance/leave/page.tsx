@@ -1,6 +1,5 @@
+import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/nextauth";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/app/components/AppShell";
 import LeaveRequestsView, {
@@ -16,7 +15,7 @@ export default async function LeavePage({
 }: {
   searchParams: Promise<{ tab?: string }>;
 }) {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) redirect("/login");
 
   const params = await searchParams;

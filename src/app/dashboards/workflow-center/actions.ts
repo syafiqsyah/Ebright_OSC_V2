@@ -1,8 +1,7 @@
 "use server";
+import { auth } from "@/auth";
 
 import { revalidatePath } from "next/cache";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/nextauth";
 import { prisma } from "@/lib/prisma";
 import {
   loadWorkflowActor,
@@ -33,7 +32,7 @@ export interface ActionResult {
 }
 
 async function currentActor() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) return null;
   return await loadWorkflowActor(session.user.email);
 }
